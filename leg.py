@@ -79,7 +79,6 @@ class ForwardDynamics(ca.Callback):
 
   # Evaluate numerically:
   def eval(self, arg):
-    # TODO: How to enable finite differences?
     q, v, tau = np.array(arg[0]), np.array(arg[1]), np.array(arg[2])
 
     return pin.aba(
@@ -89,9 +88,9 @@ class ForwardDynamics(ca.Callback):
 if __name__ == "__main__":
     OUTPUT_BIN = "trajectory_no_accel_bc.bin"
 
-    robot = load_limited_solo12(visualize = True)
+    robot = load_limited_solo12(visualize = False)
     fd = ForwardDynamics("fd", robot, opts = {"enable_fd": True})
-    
+
     freq = 100
     delta_t = 1 / freq
     
@@ -189,8 +188,15 @@ if __name__ == "__main__":
         traj, torques = pickle.load(rf)
 
     # Simulate dynamics using Pinocchio and the optimized torques:
+    def fk(state: np.array, frame_name: str):
+        frame_id = robot.model.getFrameId(frame_name)
+        pin.framesForwardKinematics(robot.model, robot.data, state)
+        pin.updateFramePlacement(robot.model, robot.data, frame_id)
+        return robot.data.oMf[frame_id]
+
     q_sim = [pin.neutral(robot.model)]
     v_sim = [pin.utils.zero(robot.nv)]
+    z_leg_sim = [fk(q_sim[-1], "FR_FOOT").translation[2]]
 
     for idx in range(len(torques)):
         accel = pin.aba(robot.model, robot.data, q_sim[-1], v_sim[-1], np.array([torques[idx].u]))
@@ -198,21 +204,29 @@ if __name__ == "__main__":
         # Integrate the stuff:
         v_sim.append(v_sim[-1] + accel * delta_t)
         q_sim.append(pin.integrate(robot.model, q_sim[-1], v_sim[-1]*delta_t))
-    
+
+        # Do FK to find position of leg:
+        z_leg_sim.append(fk(q_sim[-1], "FR_FOOT").translation[2])
+        
     #################################################################
 
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4)
     times = [delta_t * k for k in range(len(torques))]
 
     ax1.plot(times, q_sim[:-1], label = "q (rad), simulated")
     ax1.plot(times, [pt.x for pt in traj.path], label = "q (rad), optimized")
+    ax1.legend()
 
     ax2.plot(times, v_sim[:-1], label = "v (rad/s), simulated")
     ax2.plot(times, [pt.x_d for pt in traj.path], label = "v (rad/s), optimized")
+    ax2.legend()
 
     ax3.plot(times, [tk.u for tk in torques], label = "a (N*m), optimized")
+    ax3.legend()
 
-    fig.legend()
+    ax4.plot(times, z_leg_sim[:-1], label = "FR_FOOT Z, simulated")
+    ax4.legend()
+
     fig.show()
 
     #################################################################

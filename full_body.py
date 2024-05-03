@@ -189,9 +189,9 @@ if __name__ == "__main__":
 
     if not os.path.exists(OUTPUT_BIN):
         initial_state = State(0, np.deg2rad(40), 0) # At 40deg the foot is roughly at -0.28m
-        final_state   = State(3, np.pi / 2, 0)      
+        final_state   = State(0.5, np.pi / 2, 0)      
 
-        N_knots = (final_state.t - initial_state.t) * FREQ_HZ + 1
+        N_knots = int((final_state.t - initial_state.t) * FREQ_HZ) + 1
 
         g_i = []                                        # Inequality constraints (>= 0)
         q_k, v_k, a_k, tau_k, λ_k = [], [], [], [], []  # Collocation variables
@@ -206,20 +206,22 @@ if __name__ == "__main__":
 
             #### DYNAMICS CONSTRAINTS ####
             # Residual constraints for accelerations (= 0) at all collocation points:
-
-            # TODO: MAKE SURE YOU USE THE CORRECT STATE / CONTACT FORCE k+1
-            add_eq_constraint(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], ca.MX.zeros(1)), g_i)
+            add_eq_constraint(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], λ_k[k]), g_i)
             ##############################
 
             #### CONTACT CONSTRAINTS ####
-            # feet_z = fk(q_k[k])
-
-            # for fidx in range(len(FEET)):
-            #     g_i.append(feet_z[fidx] * λ_k[k])   # Complementarity - no force at a distance
-            #     # TODO: feet_z[fidx] >= 0           # No penetration
-
-            # # TODO: λ_k[k] >= 0                         # No attractive forces
+            # TODO: Do for all feet, define multiple λ_k.
+            feet_z = fk(q_k[k])                             # TODO: Verify this...
+            
+            g_i.append(feet_z[0] - FLOOR_Z)                             # No penetration of feet
+            g_i.append(λ_k[k])                                          # No attractive forces
+            add_eq_constraint((feet_z[0] - FLOOR_Z) * λ_k[k], g_i)      # Complementarity - no force at a distance
             #############################
+
+            #### JOINT LIMITS ####
+            g_i.append(tau_k[k] + 4)
+            g_i.append(-tau_k[k] + 4)
+            ######################
 
             # We'll add integration constraints for all knots, wrt their previous points:
             if k == 0:
@@ -247,7 +249,7 @@ if __name__ == "__main__":
 
         # Create the NLP problem:
         nlp = {
-            "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k),
+            "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k, *λ_k),
             "f": obj,
             "g": ca.vertcat(*g_i)
         }
@@ -262,11 +264,12 @@ if __name__ == "__main__":
         v_guess   = list(const_velocity for _ in range(N_knots))
         a_guess   = list(0 for _ in range(N_knots))
         tau_guess = list(0 for _ in range(N_knots))
+        λ_guess   = list(0 for _ in range(N_knots))         # No contact forces, foot's in the air
         ########################
 
         # Solve the problem!
         soln = solver(
-            x0 = [*q_guess, *v_guess, *a_guess, *tau_guess],
+            x0 = [*q_guess, *v_guess, *a_guess, *tau_guess, *λ_guess],
             lbg = 0, ubg = np.inf
         )["x"]
         
@@ -282,6 +285,7 @@ if __name__ == "__main__":
             q = float(soln[idx])
             v = float(soln[N_knots + idx])
             τ = float(soln[3 * N_knots + idx])
+            # TODO: λ
 
             trajectory.append(State(t, q, v))
             torques.append(Input(t, τ))
@@ -296,4 +300,4 @@ if __name__ == "__main__":
 
     for state in tqdm(trajectory):
         robot.display(np.array([state.x]))
-        time.sleep(DELTA_T)
+        time.sleep(DELTA_T*3)

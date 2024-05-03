@@ -163,6 +163,12 @@ class ForwardDynamics(ca.Callback):
         self.robot.model, self.robot.data, q, v, tau, [pin.Force(), *grf_at_joints]
     )
 
+# Equality constraints (= 0) will be modelled by two concurrent
+# inequality (>= 0) constraints:
+def add_eq_constraint(expr: ca.MX, constraints: list[ca.MX]):
+    constraints.append(expr)    # expr  >= 0
+    constraints.append(-expr)   # -expr >= 0 => expr <= 0
+
 if __name__ == "__main__":
     OUTPUT_BIN = "trajectory_with_contact.bin"
     JOINTS = ["FR_KFE"]
@@ -187,7 +193,7 @@ if __name__ == "__main__":
 
         N_knots = (final_state.t - initial_state.t) * FREQ_HZ + 1
 
-        g_i = []                                        # Equality constraints (= 0)
+        g_i = []                                        # Inequality constraints (>= 0)
         q_k, v_k, a_k, tau_k, λ_k = [], [], [], [], []  # Collocation variables
 
         for k in range(N_knots):
@@ -202,7 +208,7 @@ if __name__ == "__main__":
             # Residual constraints for accelerations (= 0) at all collocation points:
 
             # TODO: MAKE SURE YOU USE THE CORRECT STATE / CONTACT FORCE k+1
-            g_i.append(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], ca.MX.zeros(1)))
+            add_eq_constraint(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], ca.MX.zeros(1)), g_i)
             ##############################
 
             #### CONTACT CONSTRAINTS ####
@@ -222,10 +228,10 @@ if __name__ == "__main__":
             #### INTEGRATION CONSTRAINTS ####
             # Velocities - trapezoidal integration:
             # v_k[k] = v_k[k - 1] + 1/2 * Δt * (a_k[k] + a_k[k-1])
-            g_i.append(v_k[k] - v_k[k-1] - 0.5 * DELTA_T * (a_k[k] + a_k[k-1]))
+            add_eq_constraint(v_k[k] - v_k[k-1] - 0.5 * DELTA_T * (a_k[k] + a_k[k-1]), g_i)
 
             # Same for positions:
-            g_i.append(q_k[k] - q_k[k-1] - 0.5 * DELTA_T * (v_k[k] + v_k[k-1]))
+            add_eq_constraint(q_k[k] - q_k[k-1] - 0.5 * DELTA_T * (v_k[k] + v_k[k-1]), g_i)
             ##################################
 
         # Create optimization objective - min(Integrate[τ^2[t], {t, 0, T}]).
@@ -233,10 +239,10 @@ if __name__ == "__main__":
         obj = sum(0.5 * DELTA_T * (tau_k[idx]**2 + tau_k[idx+1]**2) for idx in range(N_knots-1))
 
         #### BOUNDARY CONSTRAINTS ####
-        g_i.append(q_k[0] - initial_state.x)    # Initial q
-        g_i.append(q_k[-1] - final_state.x)     # Final q
-        g_i.append(v_k[0] - initial_state.x_d)  # Initial v
-        g_i.append(v_k[-1] - final_state.x_d)   # Final v
+        add_eq_constraint(q_k[0] - initial_state.x, g_i)    # Initial q
+        add_eq_constraint(q_k[-1] - final_state.x, g_i)     # Final q
+        add_eq_constraint(v_k[0] - initial_state.x_d, g_i)  # Initial v
+        add_eq_constraint(v_k[-1] - final_state.x_d, g_i)   # Final v
         ###############################
 
         # Create the NLP problem:
@@ -261,7 +267,7 @@ if __name__ == "__main__":
         # Solve the problem!
         soln = solver(
             x0 = [*q_guess, *v_guess, *a_guess, *tau_guess],
-            lbg = 0, ubg = 0
+            lbg = 0, ubg = np.inf
         )["x"]
         
         if not solver.stats()["success"]:

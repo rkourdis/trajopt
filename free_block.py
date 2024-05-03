@@ -53,7 +53,7 @@ def load_robot():
 
 if __name__ == "__main__":
     NUDGE_N = 40
-    NUDGE_POS_X_MM = -50    # [-50, 50]
+    NUDGE_POS_X_MM = 5    # [-50, 50]
     DELTA_T_SEC = 5e-4
     DURATION_SEC = 10
 

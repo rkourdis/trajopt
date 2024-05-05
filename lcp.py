@@ -181,13 +181,25 @@ if __name__ == "__main__":
     fk = FootholdKinematics("fk", robot, FEET, opts = {"enable_fd": True})
 
     if not os.path.exists(OUTPUT_BIN):
+        constraints = []
+
+        # Create a new inequality constraint: expr >= 0
+        # NOTE: Changing the foot_z - FLOOR_Z >= 0 constraint
+        #       below to foot_z >= FLOOR_Z makes the solver unable
+        #       to optimize for some reason...
+        def add_inequality(expr: ca.MX):
+            constraints.append((expr, 0, np.inf))
+
+        # Create a new equality constraint: expr == 0
+        def add_equality(expr: ca.MX):
+            constraints.append((expr, 0, 0))
+
         initial_state = State(0, np.deg2rad(40), 0) # At 40deg the foot is roughly at -0.28m
         final_state   = State(0.5, np.pi / 2, 0)      
 
         N_knots = int((final_state.t - initial_state.t) * FREQ_HZ) + 1
 
-        g_i = []                                        # Inequality constraints (>= 0)
-        q_k, v_k, a_k, tau_k, λ_k = [], [], [], [], []  # Collocation variables
+        q_k, v_k, a_k, tau_k, λ_k, foot_z_k = [], [], [], [], [], []  # Collocation variables
 
         for k in range(N_knots):
             # Create decision variables at collocation points:
@@ -195,25 +207,38 @@ if __name__ == "__main__":
             v_k.append(ca.MX.sym(f"v_{k}"))
             a_k.append(ca.MX.sym(f"a_{k}"))
             tau_k.append(ca.MX.sym(f"τ_{k}"))
+
             λ_k.append(ca.MX.sym(f"λ_{k}"))
+            foot_z_k.append(ca.MX.sym(f"foot_z_{k}"))
 
             #### DYNAMICS CONSTRAINTS ####
             # Residual constraints for accelerations (= 0) at all collocation points:
-            add_eq_constraint(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], λ_k[k]), g_i)
+            add_equality(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], λ_k[k]))
             ##############################
 
             #### CONTACT CONSTRAINTS ####
             # TODO: Do for all feet, define multiple λ_k.
-            feet_z = fk(q_k[k])                             # TODO: Verify this...
-            
-            g_i.append(feet_z[0] - FLOOR_Z)                             # No penetration of feet
-            g_i.append(λ_k[k])                                          # No attractive forces
-            add_eq_constraint((feet_z[0] - FLOOR_Z) * λ_k[k], g_i)      # Complementarity - no force at a distance
+            add_equality(foot_z_k[k] - fk(q_k[k])[0])        # foot_z[k] should be the foot height
+            add_inequality(foot_z_k[k] - FLOOR_Z)            # No penetration of feet
+            add_inequality(λ_k[k])                           # No attractive forces
+
+            # add_equality((foot_z_k[k] - FLOOR_Z) * λ_k[k])   # Complementarity - no force at a distance
+
+            # "Soft" LCP:
+            # TODO: See Posa '13 for techniques on how to solve this problem. It's difficult.
+            # TODO: Change to a contact explicit scheme - it would be the same, but for the 
+            # times when there's contact you have to FORCE foot_z == GROUND.
+            # Then, you can also describe the friction cone dynamics and the fact that there
+            # MUST NOT be any slipping, this will choose τ such that the normal force
+            # is enough for that (if feasible).
+            add_inequality((foot_z_k[k] - FLOOR_Z) * λ_k[k]) # >= 0
+            add_inequality(-(foot_z_k[k] - FLOOR_Z) * λ_k[k] + 1e-3) # <= 1e-3
             #############################
 
             #### JOINT LIMITS ####
-            g_i.append(tau_k[k] + 4)
-            g_i.append(-tau_k[k] + 4)
+            # NOTE: The solver fails without these, why?
+            add_inequality(tau_k[k] + 4)
+            add_inequality(-tau_k[k] + 4)
             ######################
 
             # We'll add integration constraints for all knots, wrt their previous points:
@@ -223,10 +248,10 @@ if __name__ == "__main__":
             #### INTEGRATION CONSTRAINTS ####
             # Velocities - trapezoidal integration:
             # v_k[k] = v_k[k - 1] + 1/2 * Δt * (a_k[k] + a_k[k-1])
-            add_eq_constraint(v_k[k] - v_k[k-1] - 0.5 * DELTA_T * (a_k[k] + a_k[k-1]), g_i)
+            add_equality(v_k[k] - v_k[k-1] - 0.5 * DELTA_T * (a_k[k] + a_k[k-1]))
 
             # Same for positions:
-            add_eq_constraint(q_k[k] - q_k[k-1] - 0.5 * DELTA_T * (v_k[k] + v_k[k-1]), g_i)
+            add_equality(q_k[k] - q_k[k-1] - 0.5 * DELTA_T * (v_k[k] + v_k[k-1]))
             ##################################
 
         # Create optimization objective - min(Integrate[τ^2[t], {t, 0, T}]).
@@ -234,36 +259,62 @@ if __name__ == "__main__":
         obj = sum(0.5 * DELTA_T * (tau_k[idx]**2 + tau_k[idx+1]**2) for idx in range(N_knots-1))
 
         #### BOUNDARY CONSTRAINTS ####
-        add_eq_constraint(q_k[0] - initial_state.x, g_i)    # Initial q
-        add_eq_constraint(q_k[-1] - final_state.x, g_i)     # Final q
-        add_eq_constraint(v_k[0] - initial_state.x_d, g_i)  # Initial v
-        add_eq_constraint(v_k[-1] - final_state.x_d, g_i)   # Final v
+        add_equality(q_k[0] - initial_state.x)      # Initial q
+        add_equality(q_k[-1] - final_state.x)       # Final q
+        add_equality(v_k[0] - initial_state.x_d)    # Initial v
+        add_equality(v_k[-1] - final_state.x_d)     # Final v
         ###############################
 
         # Create the NLP problem:
+        g, lbg, ubg = zip(*constraints)
         nlp = {
-            "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k, *λ_k),
+            "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k, *λ_k, *foot_z_k),
             "f": obj,
-            "g": ca.vertcat(*g_i)
+            "g": ca.vertcat(*g)
         }
 
         solver = ca.nlpsol("S", "ipopt", nlp)
 
         #### INITIAL GUESS ####
-        # Assume constant velocity. Go from q_start to q_end.
-        const_velocity = (final_state.x - initial_state.x) / (final_state.t - initial_state.t)
-        
-        q_guess   = list(const_velocity * DELTA_T * idx for idx in range(N_knots))
-        v_guess   = list(const_velocity for _ in range(N_knots))
-        a_guess   = list(0 for _ in range(N_knots))
+        # Assume foot falls for 1/4 of the time, stays at 0 for 1/4
+        # then goes up:
+        traj_dur = final_state.t - initial_state.t
+
+        fall_vel = (initial_state.x - 0) / (traj_dur / 4)
+        rise_vel = (final_state.x - 0) / (traj_dur / 2)
+
+        q_guess = [
+            *[initial_state.x - fall_vel * idx * DELTA_T for idx in range(N_knots // 4)],
+            *[0 for _ in range(N_knots // 4)],
+            *[rise_vel * idx * DELTA_T for idx in range(N_knots // 2)],
+            *[final_state.x for _ in range(N_knots - N_knots // 2 - 2 * (N_knots // 4))]
+        ]
+
+        v_guess = [
+            *[-fall_vel for _ in range(N_knots // 4)],
+            *[0 for _ in range(N_knots // 4)],
+            *[rise_vel for _ in range(N_knots // 2)],
+            *[0 for _ in range(N_knots - N_knots // 2 - 2 * (N_knots // 4))]
+        ]
+
+        a_guess = [0 for _ in range(N_knots)]
         tau_guess = list(0 for _ in range(N_knots))
-        λ_guess   = list(0 for _ in range(N_knots))         # No contact forces, foot's in the air
+        
+        foot_z_guess = [float(fk([q])[0]) for q in q_guess]
+
+        λ_guess = [
+            *[0 for _ in range(N_knots // 4)],
+            *[1 for _ in range(N_knots // 4)],
+            *[0 for _ in range(N_knots - 2 * (N_knots // 4))],
+        ]
+
         ########################
 
         # Solve the problem!
         soln = solver(
-            x0 = [*q_guess, *v_guess, *a_guess, *tau_guess, *λ_guess],
-            lbg = 0, ubg = np.inf
+            x0 = [*q_guess, *v_guess, *a_guess, *tau_guess, *λ_guess, *foot_z_guess],
+            lbg = ca.vertcat(*lbg),
+            ubg = ca.vertcat(*ubg)
         )["x"]
         
         if not solver.stats()["success"]:
@@ -271,24 +322,34 @@ if __name__ == "__main__":
             exit()
 
         # Extract variables from the solution:
-        trajectory, torques = [], []
+        trajectory, torques, grfs, foot_zs = [], [], [], []
         
         for idx in range(N_knots):
             t = DELTA_T*idx
             q = float(soln[idx])
             v = float(soln[N_knots + idx])
             τ = float(soln[3 * N_knots + idx])
-            # TODO: λ
+            λ = float(soln[4 * N_knots + idx])
+            foot_z = float(soln[5 * N_knots + idx])
 
             trajectory.append(State(t, q, v))
             torques.append(Input(t, τ))
+            grfs.append(GRF(t, λ))
+            foot_zs.append((t, foot_z))
 
         with open(OUTPUT_BIN, "wb") as wf:
-            pickle.dump((trajectory, torques), wf)
+            pickle.dump((trajectory, torques, grfs, foot_zs), wf)
 
     with open(OUTPUT_BIN, "rb") as rf:
-        trajectory, torques = pickle.load(rf)
+        trajectory, torques, grfs, foot_zs = pickle.load(rf)
 
+    ###################################################
+    plt.plot([λ.t for λ in grfs], [λ.λ for λ in grfs], label = "z-normal reaction force")
+    plt.plot([τ.t for τ in torques], [τ.u for τ in torques], label = "torques")
+    plt.plot([z[0] for z in foot_zs], [z[1] for z in foot_zs], label = "foot_zs")
+    plt.legend()
+    plt.show()
+    ###################################################
     input("Press ENTER to play trajectory...")
 
     for state in tqdm(trajectory):

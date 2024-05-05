@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import hppfcl
 import pickle
@@ -162,12 +161,6 @@ class ForwardDynamics(ca.Callback):
     return pin.aba(
         self.robot.model, self.robot.data, q, v, tau, [pin.Force(), *grf_at_joints]
     )
-
-# Equality constraints (= 0) will be modelled by two concurrent
-# inequality (>= 0) constraints:
-def add_eq_constraint(expr: ca.MX, constraints: list[ca.MX]):
-    constraints.append(expr)    # expr  >= 0
-    constraints.append(-expr)   # -expr >= 0 => expr <= 0
 
 if __name__ == "__main__":
     OUTPUT_BIN = "trajectory_with_contact.bin"

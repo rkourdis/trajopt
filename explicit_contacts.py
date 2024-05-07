@@ -88,26 +88,40 @@ class FootholdKinematics(ca.Callback):
     def __init__(self, name: str, robot, feet: list[str], opts={}):
         ca.Callback.__init__(self)
         self.robot = robot
-        self.foot_frame_ids = [robot.model.getFrameId(f) for f in feet]
+        self.ff_ids = [robot.model.getFrameId(f) for f in feet]
         self.construct(name, opts)
 
-    def get_n_in(self): return 1
-
-    # Returns a tuple of 1x1 DMs for multiple feet:
-    def get_n_out(self): return len(self.foot_frame_ids)
-
+    def get_n_in(self): return 3    # q, v, a of robot (joint space)
+    def get_sparsity_in(self, idx: int):
+        return ca.Sparsity.dense(
+            self.robot.nq if idx == 0 else self.robot.nv, 1
+        )
+    
+    # foot frame positions (oMf), velocities, accelerations (in local world-aligned coords)
+    def get_n_out(self): return 3
+    def get_sparsity_out(self, _: int):
+        return ca.Sparsity.dense(len(self.ff_ids), 3)
+    
     def eval(self, arg):
-        q = np.array(arg[0])    # np.array(ca.DM of size 1x1)
+        q, v, a = np.array(arg[0]), np.array(arg[1]), np.array(arg[2])
 
-        # This runs the FK algorithm and returns the Z-heights of all feet
-        # at a given state. Heights are in the origin frame.
-        pin.framesForwardKinematics(self.robot.model, self.robot.data, q)
-        pin.updateFramePlacements(self.robot.model, self.robot.data)
+        # This runs the second-order FK algorithm and returns:
+        # - The positions of all feet wrt the origin
+        # - The velocities of all feet in the local world-aligned frame
+        # - The accelerations of all feet in the local world-aligned frame
 
-        return np.array([
-            self.robot.data.oMf[fid].translation[2]
-            for fid in self.foot_frame_ids
-        ])
+        pin.forwardKinematics(robot.model, robot.data, q, v, a)
+        pin.updateFramePlacements(robot.model, robot.data)
+
+        get_pos = lambda fid: robot.data.oMf[fid].translation
+        get_vel = lambda fid: pin.getFrameVelocity(robot.model, robot.data, fid, pin.LOCAL_WORLD_ALIGNED).linear
+        get_acc = lambda fid: pin.getFrameAcceleration(robot.model, robot.data, fid, pin.LOCAL_WORLD_ALIGNED).linear
+
+        return (
+            np.stack([get_pos(f) for f in self.ff_ids]),
+            np.stack([get_vel(f) for f in self.ff_ids]),
+            np.stack([get_acc(f) for f in self.ff_ids])
+        )
 
 class ForwardDynamics(ca.Callback):
   def __init__(self, name: str, robot, joints: list[str], feet: list[str], opts={}):
@@ -201,8 +215,6 @@ if __name__ == "__main__":
             ivt.Interval(duration / 4, duration / 2)    # Contact for 125ms, then swing up
         ])
 
-        # print(contact_times.overlaps(0.2))
-
         N_knots = int((final_state.t - initial_state.t) * FREQ_HZ) + 1
         q_k, v_k, a_k, tau_k, λ_k, foot_z_k = [], [], [], [], [], []  # Collocation variables
 
@@ -222,11 +234,17 @@ if __name__ == "__main__":
             ##############################
 
             #### CONTACT CONSTRAINTS ####
-            add_equality(foot_z_k[k] - fk(q_k[k])[0])        # foot_z[k] should be the foot height
+            f_pos, _, f_acc = fk(q_k[k], v_k[k], a_k[k])
+            add_equality(foot_z_k[k] - f_pos[2])          # foot_z[k] should be the foot height
 
             if contact_times.overlaps(k * DELTA_T):
                 add_equality(foot_z_k[k] - FLOOR_Z)          # Foot should be stable on the floor
                 add_inequality(λ_k[k])                       # Contact forces available
+                
+                # Foot Z acceleration should be zero - this is to avoid issues with the optimizer
+                # tricking the integration scheme and applying oscillating torques and GRFs while
+                # on the floor (such that foot_z = 0 after trapezoidal integration...)
+                add_equality(f_acc[2])
             else:
                 add_inequality(foot_z_k[k] - FLOOR_Z)        # TODO: Change this to strict inequality?
                 add_equality(λ_k[k])                         # Contact forces unavailable
@@ -276,7 +294,7 @@ if __name__ == "__main__":
         # Assume that we'll be falling for the first 1/4 of the trajectory.
         # Then, we'll have contact to the ground so we'll say that the foot's on the ground.
         # Then we'll slowly climb up.
-        min_leg_z, max_leg_z = float(fk(0)[0]), float(fk(np.pi/2)[0])
+        min_leg_z, max_leg_z = float(fk(0, 0, 0)[0][2]), float(fk(np.pi/2, 0, 0)[0][2])
         contact_leg_angle = np.arccos((max_leg_z - FLOOR_Z) / (max_leg_z - min_leg_z))
 
         fall_velocity = (contact_leg_angle - initial_state.x) / (duration / 4)
@@ -302,7 +320,7 @@ if __name__ == "__main__":
             a_g.append(0)
             τ_g.append(0)
             λ_g.append(0)
-            fz_g.append(float(fk(q_g[-1])[0]))
+            fz_g.append(float(fk(q_g[-1], 0, 0)[0][2]))
         ########################
 
         # Solve the problem!
@@ -342,16 +360,16 @@ if __name__ == "__main__":
     ###################################################
     plt.scatter([x.t for x in trajectory], np.zeros(len(trajectory)), label = "collocation points")
     plt.plot([λ.t for λ in grfs], [λ.λ for λ in grfs], label = "z-normal reaction force")
-    plt.plot([τ.t for τ in torques], [τ.u*20 for τ in torques], label = "torques")
-    # plt.plot([z[0] for z in foot_zs], [z[1] for z in foot_zs], label = "foot_zs")
-    plt.plot([x.t for x in trajectory], [x.x_dd/25 for x in trajectory], label = "joint accelerations")
+    plt.plot([τ.t for τ in torques], [τ.u for τ in torques], label = "torques")
+    plt.plot([z[0] for z in foot_zs], [z[1] for z in foot_zs], label = "foot_zs")
+    plt.plot([x.t for x in trajectory], [x.x_dd for x in trajectory], label = "joint accelerations")
     plt.plot([x.t for x in trajectory], [x.x_d for x in trajectory], label = "joint velocities")
 
     plt.legend()
     plt.show()
     ###################################################
-    # input("Press ENTER to play trajectory...")
+    input("Press ENTER to play trajectory...")
 
-    # for state in tqdm(trajectory):
-    #     robot.display(np.array([state.x]))
-    #     time.sleep(DELTA_T*3)
+    for state in tqdm(trajectory):
+        robot.display(np.array([state.x]))
+        time.sleep(DELTA_T*3)

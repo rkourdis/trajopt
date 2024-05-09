@@ -166,7 +166,7 @@ class ForwardDynamics(ca.Callback):
 
     def get_n_out(self): return 1
     def get_sparsity_out(self, _: int):
-        return ca.Sparsity.dense(self.robot.nv, 1)          # (19 x 1)
+        return ca.Sparsity.dense(self.robot.nv, 1)          # (18 x 1)
 
     def eval(self, arg):
         q, v, tau_act, λ = \

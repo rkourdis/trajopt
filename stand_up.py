@@ -115,8 +115,30 @@ class FootholdKinematics(ca.Callback):
             np.stack([get_acc(f) for f in self.ff_ids])
         )
 
+class StateIntegrator(ca.Callback):
+    def __init__(self, name: str, robot: pin.RobotWrapper, opts = {}):
+        ca.Callback.__init__(self)
+        self.robot = robot
+        self.construct(name, opts)
+    
+    def get_n_in(self): return 2
+    def get_sparsity_in(self, idx: int):
+        return [
+            ca.Sparsity.dense(self.robot.nq, 1),
+            ca.Sparsity.dense(self.robot.nv, 1)
+        ][idx]
+
+    def get_n_out(self): return 1
+    def get_sparsity_out(self, _: int):
+        return ca.Sparsity.dense(self.robot.nq, 1)
+    
+    def eval(self, arg):
+        q, v = np.array(arg[0]), np.array(arg[1])
+        q_new = pin.integrate(robot.model, q, v)
+        return [np.expand_dims(q_new, axis = -1)]
+
 class ForwardDynamics(ca.Callback):
-    def __init__(self, name: str, robot, act_joint_ids: list[int], feet: list[str], opts={}):
+    def __init__(self, name: str, robot: pin.RobotWrapper, act_joint_ids: list[int], feet: list[str], opts={}):
         ca.Callback.__init__(self)
         self.robot = robot
 
@@ -149,7 +171,7 @@ class ForwardDynamics(ca.Callback):
     def eval(self, arg):
         q, v, tau_act, λ = \
             np.array(arg[0]), np.array(arg[1]), np.array(arg[2]), np.array(arg[3])
-
+        
         # λ contains normal GRFs for each foot.
         # Find how they're expressed in all actuated joint frames at
         # the provided robot state. FK will populate robot.data.oMf.
@@ -227,7 +249,7 @@ if __name__ == "__main__":
     # The order of forces per foot WILL be in this order:
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
-    FREQ_HZ = 200
+    FREQ_HZ = 1
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.3
     
@@ -240,61 +262,72 @@ if __name__ == "__main__":
     # Skip 'universe' and 'root_joint' as unactuated joints:
     actuated_joints = [j.id for j in robot.model.joints[2:]]
 
-    fd = ForwardDynamics("fd", robot, actuated_joints, feet = FEET, opts = {"enable_fd": True})
-    fk = FootholdKinematics("fk", robot, FEET, opts = {"enable_fd": True})
+    fd = ForwardDynamics("fd", robot, actuated_joints, feet = FEET, opts = {"enable_fd": True}) #, "jit": True})
+    fk = FootholdKinematics("fk", robot, FEET, opts = {"enable_fd": True}) #, "jit": True})
+    si = StateIntegrator("si", robot, opts = {"enable_fd": True}) #, "jit": True})
 
-    print(fd(q0, v0, np.zeros((len(actuated_joints), 1)), np.zeros((len(FEET), 1))))
-    exit()
+    # import cProfile
+    # with cProfile.Profile() as prof:
+    #     for _ in range(1000):
+    #         a = fd(q0, v0, np.zeros((len(actuated_joints), 1)), np.zeros((len(FEET), 1)))
+    #     prof.dump_stats("fd_1000_calls.prof")
+
+    # exit()
 
     if not os.path.exists(OUTPUT_BIN):
+        q_k, v_k, a_k, tau_k, λ_k, foot_z_k = [], [], [], [], [], []  # Collocation variables
+
         #region Constraint utilities
         constraints = []
 
-        # Create a new inequality constraint: expr >= 0
+        # Create a new elementwise inequality constraint: expr[:] >= 0
         def add_inequality(expr: ca.MX):
-            constraints.append((expr, 0, np.inf))
+            constraints.append((expr, np.zeros(expr.shape), np.full(expr.shape, np.inf)))
 
-        # Create a new equality constraint: expr == 0
+        # Create a new elementwise equality constraint: expr[:] == 0
         def add_equality(expr: ca.MX):
-            constraints.append((expr, 0, 0))
+            constraints.append((expr, np.zeros(expr.shape), np.zeros(expr.shape)))
         #endregion
-
-        # TODO: DEFINE GOAL HERE.
 
         #region Task parameters
 
         # Trajectory duration - the task will be to keep the body CoM at a given
         # height as well as possible for the entirety of this duration:
-        duration = 3                        
+        duration = 1              
         initial_state = State(0, q0, v0)
 
         # Contact times per foot, we'll assume the robot can fall for ~0.15m 
         # (half its initial height) before the feet are on the ground:
-        contact_times = [ivt.IntervalTree([ivt.Interval(0.17, duration)]) for _ in FEET]
+        # contact_times = [ivt.IntervalTree([ivt.Interval(0.17, duration)]) for _ in FEET]
+        contact_times = [ivt.IntervalTree([ivt.Interval(0.0, duration)]) for _ in FEET]
+
+        # Trajectory error function. Given t, q, v, a, τ at a collocation point
+        # it returns how far away the trajectory is from the desired one at that
+        # time:
+        def traj_err(t, q, v, a, τ):
+            DESIRED_COM_Z = -0.1
+            return (q[2] - DESIRED_COM_Z) ** 2
 
         #endregion
 
-
-        print(contact_times)
-        exit()
-
-
-
-
-
-
-        N_knots = int((final_state.t - initial_state.t) * FREQ_HZ) + 1
-        q_k, v_k, a_k, tau_k, λ_k, foot_z_k = [], [], [], [], [], []  # Collocation variables
+        N_knots = int(duration * FREQ_HZ) + 1
+        print("Creating variables and constraints...")
 
         for k in range(N_knots):
-            # Create decision variables at collocation points:
-            q_k.append(ca.MX.sym(f"q_{k}"))
-            v_k.append(ca.MX.sym(f"v_{k}"))
-            a_k.append(ca.MX.sym(f"a_{k}"))
-            tau_k.append(ca.MX.sym(f"τ_{k}"))
+            #region Collocation variable creation
 
-            λ_k.append(ca.MX.sym(f"λ_{k}"))
-            foot_z_k.append(ca.MX.sym(f"foot_z_{k}"))
+            # Create decision variables at collocation points:
+            q_k.append(ca.MX.sym(f"q_{k}", robot.nq))   # 19 x 1
+            v_k.append(ca.MX.sym(f"v_{k}", robot.nv))   # 18 x 1
+            a_k.append(ca.MX.sym(f"a_{k}", robot.nv))   # 18 x 1
+
+            tau_k.append(ca.MX.sym(f"τ_{k}", len(actuated_joints)))  # 12 x 1 
+            λ_k.append(ca.MX.sym(f"λ_{k}", len(FEET)))               # 4  x 1
+            foot_z_k.append(ca.MX.sym(f"foot_z_{k}", len(FEET)))     # 4  x 1
+            
+            #endregion
+
+            #region Pointwise constraints (accelerations, contact, limits)
 
             #### DYNAMICS CONSTRAINTS ####
             # Residual constraints for accelerations (= 0) at all collocation points:
@@ -303,97 +336,105 @@ if __name__ == "__main__":
 
             #### CONTACT CONSTRAINTS ####
             f_pos, _, f_acc = fk(q_k[k], v_k[k], a_k[k])
-            add_equality(foot_z_k[k] - f_pos[2])          # foot_z[k] should be the foot height
+            add_equality(foot_z_k[k] - f_pos[:, 2])          # foot_z[k] should contain all foot heights
 
-            if contact_times.overlaps(k * DELTA_T):
-                add_equality(foot_z_k[k] - FLOOR_Z)          # Foot should be stable on the floor
-                add_inequality(λ_k[k])                       # Contact forces available
-                
-                # Foot Z acceleration should be zero - this is to avoid issues with the optimizer
-                # tricking the integration scheme and applying oscillating torques and GRFs while
-                # on the floor (such that foot_z = 0 after trapezoidal integration...)
-                add_equality(f_acc[2])
-            else:
-                add_inequality(foot_z_k[k] - FLOOR_Z)        # TODO: Change this to strict inequality?
-                add_equality(λ_k[k])                         # Contact forces unavailable
+            # Enforce constraints for all feet:
+            for idx, foot in enumerate(FEET):
+
+                # If that particular foot is in contact with the ground:
+                if contact_times[idx].overlaps(k * DELTA_T):
+                    add_equality(foot_z_k[k][idx] - FLOOR_Z)     # Foot should be stable on the floor
+                    add_inequality(λ_k[k][idx])                  # Contact forces available
+                    
+                    # Foot Z acceleration should be zero - this is to avoid issues with the optimizer
+                    # tricking the integration scheme and applying oscillating torques and GRFs while
+                    # on the floor (such that foot_z = 0 after trapezoidal integration...)
+                    add_equality(f_acc[idx, 2])
+                else:
+                    add_inequality(foot_z_k[k][idx] - FLOOR_Z)   # TODO: Change this to strict inequality?
+                    add_equality(λ_k[k][idx])                    # Contact forces unavailable
             #############################
 
             #### JOINT LIMITS ####
-            # # NOTE: The solver fails without these, why?
-            # add_inequality(tau_k[k] + 4)
-            # add_inequality(-tau_k[k] + 4)
+            # TODO.
             ######################
+
+            #endregion
 
             # We'll add integration constraints for all knots, wrt their previous points:
             if k == 0:
                 continue
-            
+
+            #region Integration constraints (residuals)
+
             #### INTEGRATION CONSTRAINTS ####
             # Velocities - trapezoidal integration:
             # v_k[k] = v_k[k - 1] + 1/2 * Δt * (a_k[k] + a_k[k-1])
             add_equality(v_k[k] - v_k[k-1] - 0.5 * DELTA_T * (a_k[k] + a_k[k-1]))
 
-            # Same for positions:
-            add_equality(q_k[k] - q_k[k-1] - 0.5 * DELTA_T * (v_k[k] + v_k[k-1]))
+            # Use pin.integrate() to integrate the positions. Orientations
+            # can't be integrated like velocities:
+            add_equality(q_k[k] - si(q_k[k-1], 0.5 * DELTA_T * (v_k[k] + v_k[k-1])))
             ##################################
 
-        # Create optimization objective - min(Integrate[τ^2[t], {t, 0, T}]).
-        # Use trapezoidal integration to approximate:
-        obj = sum(0.5 * DELTA_T * (tau_k[idx]**2 + tau_k[idx+1]**2) for idx in range(N_knots-1))
+            #endregion
+        
+        #region Objective and boundaries
+
+        print("Creating optimization objective...")
+
+        # Create optimization objective - hold the body frame's Z as constant as possible.
+        # Integrate the error over time, use trapezoidal approximation:
+        err = lambda q: traj_err(None, q, None, None, None)
+        obj = sum(0.5 * DELTA_T * (err(q_k[idx]) + err(q_k[idx+1])) for idx in range(N_knots-1))
+
+        print("Adding boundary constraints...")
 
         #### BOUNDARY CONSTRAINTS ####
-        add_equality(q_k[0] - initial_state.x)      # Initial q
-        add_equality(q_k[-1] - final_state.x)       # Final q
-        add_equality(v_k[0] - initial_state.x_d)    # Initial v
-        add_equality(v_k[-1] - final_state.x_d)     # Final v
+        add_equality(q_k[0] - initial_state.q)      # Initial q
+        add_equality(v_k[0] - initial_state.v)    # Initial v
         ###############################
+
+        #endregion
+
+        #region NLP setup
+        
+        print("Creating NLP description...")
 
         # Create the NLP problem:
         g, lbg, ubg = zip(*constraints)
+
         nlp = {
             "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k, *λ_k, *foot_z_k),
             "f": obj,
             "g": ca.vertcat(*g)
         }
 
+        print("Instantiating solver...")
         solver = ca.nlpsol("S", "ipopt", nlp)
 
+        #endregion
+
+        #region Initial guess
+
         #### INITIAL GUESS ####
-        # Assume that we'll be falling for the first 1/4 of the trajectory.
-        # Then, we'll have contact to the ground so we'll say that the foot's on the ground.
-        # Then we'll slowly climb up.
-        min_leg_z, max_leg_z = float(fk(0, 0, 0)[0][2]), float(fk(np.pi/2, 0, 0)[0][2])
-        contact_leg_angle = np.arccos((max_leg_z - FLOOR_Z) / (max_leg_z - min_leg_z))
 
-        fall_velocity = (contact_leg_angle - initial_state.x) / (duration / 4)
-        climb_velocity = (final_state.x - contact_leg_angle) / (duration / 2)
+        print("Creating initial guesses...")
 
-        q_g, v_g, a_g, τ_g, λ_g, fz_g = [], [], [], [], [], []
-
-        for idx in range(N_knots):
-            t = idx * DELTA_T
-
-            if t < duration / 4:
-                q_g.append(initial_state.x + fall_velocity * t)
-                v_g.append(fall_velocity)
-
-            elif t < duration / 2:
-                q_g.append(contact_leg_angle)
-                v_g.append(0)
-
-            else:
-                q_g.append(contact_leg_angle + climb_velocity * (t - duration / 2))
-                v_g.append(climb_velocity)
-
-            a_g.append(0)
-            τ_g.append(0)
-            λ_g.append(0)
-            fz_g.append(float(fk(q_g[-1], 0, 0)[0][2]))
+        # Assume that nothing changes as I'm very lazy:
+        q_g  = [initial_state.q for _ in range(N_knots)]
+        v_g  = [initial_state.v for _ in range(N_knots)]
+        a_g  = [np.zeros((robot.nv, 1)) for _ in range(N_knots)]
+        τ_g  = [np.zeros((len(actuated_joints), 1)) for _ in range(N_knots)]
+        λ_g  = [np.zeros((len(FEET), 1)) for _ in range(N_knots)]
+        fz_g = [np.array(fk(q_g[0], v_g[0], a_g[0])[0][:, 2]) for _ in range(N_knots)]
         ########################
+
+        #endregion
 
         # Solve the problem!
         soln = solver(
-            x0 = [*q_g, *v_g, *a_g, *τ_g, *λ_g, *fz_g],
+            x0  = ca.vertcat(*q_g, *v_g, *a_g, *τ_g, *λ_g, *fz_g),
             lbg = ca.vertcat(*lbg),
             ubg = ca.vertcat(*ubg)
         )["x"]
@@ -402,42 +443,42 @@ if __name__ == "__main__":
             print("Solver failed to find solution. Exitting...")
             exit()
 
-        # Extract variables from the solution:
-        trajectory, torques, grfs, foot_zs = [], [], [], []
+        # # Extract variables from the solution:
+        # trajectory, torques, grfs, foot_zs = [], [], [], []
         
-        for idx in range(N_knots):
-            t = DELTA_T*idx
-            q = float(soln[idx])
-            v = float(soln[N_knots + idx])
-            a = float(soln[2 * N_knots + idx])
-            τ = float(soln[3 * N_knots + idx])
-            λ = float(soln[4 * N_knots + idx])
-            foot_z = float(soln[5 * N_knots + idx])
+        # for idx in range(N_knots):
+        #     t = DELTA_T*idx
+        #     q = float(soln[idx])
+        #     v = float(soln[N_knots + idx])
+        #     a = float(soln[2 * N_knots + idx])
+        #     τ = float(soln[3 * N_knots + idx])
+        #     λ = float(soln[4 * N_knots + idx])
+        #     foot_z = float(soln[5 * N_knots + idx])
 
-            trajectory.append(State(t, q, v, a))
-            torques.append(Input(t, τ))
-            grfs.append(GRF(t, λ))
-            foot_zs.append((t, foot_z))
+        #     trajectory.append(State(t, q, v, a))
+        #     torques.append(Input(t, τ))
+        #     grfs.append(GRF(t, λ))
+        #     foot_zs.append((t, foot_z))
 
-        with open(OUTPUT_BIN, "wb") as wf:
-            pickle.dump((trajectory, torques, grfs, foot_zs), wf)
+        # with open(OUTPUT_BIN, "wb") as wf:
+        #     pickle.dump((trajectory, torques, grfs, foot_zs), wf)
 
-    with open(OUTPUT_BIN, "rb") as rf:
-        trajectory, torques, grfs, foot_zs = pickle.load(rf)
+    # with open(OUTPUT_BIN, "rb") as rf:
+    #     trajectory, torques, grfs, foot_zs = pickle.load(rf)
 
-    ###################################################
-    plt.scatter([x.t for x in trajectory], np.zeros(len(trajectory)), label = "collocation points")
-    plt.plot([λ.t for λ in grfs], [λ.λ for λ in grfs], label = "z-normal reaction force")
-    plt.plot([τ.t for τ in torques], [τ.u for τ in torques], label = "torques")
-    plt.plot([z[0] for z in foot_zs], [z[1] for z in foot_zs], label = "foot_zs")
-    plt.plot([x.t for x in trajectory], [x.x_dd for x in trajectory], label = "joint accelerations")
-    plt.plot([x.t for x in trajectory], [x.x_d for x in trajectory], label = "joint velocities")
+    # ###################################################
+    # plt.scatter([x.t for x in trajectory], np.zeros(len(trajectory)), label = "collocation points")
+    # plt.plot([λ.t for λ in grfs], [λ.λ for λ in grfs], label = "z-normal reaction force")
+    # plt.plot([τ.t for τ in torques], [τ.u for τ in torques], label = "torques")
+    # plt.plot([z[0] for z in foot_zs], [z[1] for z in foot_zs], label = "foot_zs")
+    # plt.plot([x.t for x in trajectory], [x.x_dd for x in trajectory], label = "joint accelerations")
+    # plt.plot([x.t for x in trajectory], [x.x_d for x in trajectory], label = "joint velocities")
 
-    plt.legend()
-    plt.show()
-    ###################################################
-    input("Press ENTER to play trajectory...")
+    # plt.legend()
+    # plt.show()
+    # ###################################################
+    # input("Press ENTER to play trajectory...")
 
-    for state in tqdm(trajectory):
-        robot.display(np.array([state.x]))
-        time.sleep(DELTA_T*3)
+    # for state in tqdm(trajectory):
+    #     robot.display(np.array([state.x]))
+    #     time.sleep(DELTA_T*3)

@@ -1,0 +1,81 @@
+sudo apt-get update 
+sudo apt-get install cmake build-essential python3.10 python3-pip
+
+### eigenpy
+-----------
+git clone https://github.com/stack-of-tasks/eigenpy.git && cd eigenpy
+git checkout tags/v2.9.2 && git submodule update --init --recursive
+sudo apt-get install libboost-all-dev libeigen3-dev libpython3.10-dev liburdfdom-dev python3-numpy python3-scipy
+cd build && cmake -DPYTHON_EXECUTABLE=$(which python3) -DBUILD_TESTING=ON ..
+make -j2
+ctest --output-on-failure
+sudo make install
+
+### hpp-fcl
+------------------
+sudo apt-get update
+sudo apt-get install libeigen3-dev libassimp-dev libqhull-dev
+git clone https://github.com/humanoid-path-planner/hpp-fcl.git && cd hpp-fcl
+git checkout tags/v2.4.4 && git submodule update --init --recursive
+cmake .. -DHPP_FCL_HAS_QHULL=ON
+make -j2
+ctest --output-on-failure
+sudo make install
+
+### Ipopt
+------------------
+sudo apt-get install gcc g++ gfortran git patch wget pkg-config liblapack-dev libmetis-dev
+
+ # With MUMPS linear solver:
+ # ------------------------------------------------------- 
+	 https://github.com/coin-or-tools/ThirdParty-HSL
+	 cd ThirdParty-Mumps
+	 ./get.Mumps
+	 ./configure
+	 make
+	 sudo make install
+ # -------------------------------------------------------
+
+ # With HSL solvers:
+ # -------------------------------------------------------
+ #  	See: https://github.com/coin-or-tools/ThirdParty-HSL
+ # -------------------------------------------------------
+
+git clone https://github.com/coin-or/Ipopt.git
+cd Ipopt && make build && cd build
+../configure
+make
+make test
+sudo make install
+
+### CasADi
+---------------------
+sudo apt-get install swig3.0
+git clone https://github.com/casadi/casadi.git casadi && cd casadi && git checkout 3.6.5
+mkdir build && cd build
+cmake -DWITH_PYTHON=ON -DWITH_PYTHON3=ON -DWITH_IPOPT=ON ..
+make
+sudo make install
+echo 'export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc
+#cd ../test/python && python3 alltests.py 	# Some fail!
+
+### Octomap
+----------------------
+git clone git@github.com:OctoMap/octomap.git
+cd octomap && git checkout tags/v.1.10.0
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make -j6
+sudo make install
+
+### Pinocchio 3
+----------------------
+# sudo apt-get install libsdformat-dev
+
+git clone https://github.com/stack-of-tasks/pinocchio.git && cd pinocchio && git checkout pinocchio3-preview
+git submodule update --init --recursive
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_URDF_SUPPORT=ON -DBUILD_WITH_SDF_SUPPORT=OFF -DBUILD_WITH_COLLISION_SUPPORT=ON -DBUILD_WITH_CASADI_SUPPORT=ON -DBUILD_PYTHON_INTERFACE=ON
+make
+sudo make install
+echo 'export PYTHONPATH=/usr/local/lib/python3/dist-packages/:$PYTHONPATH' >> ~/.bashrc && source ~/.bashrc

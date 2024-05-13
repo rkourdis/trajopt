@@ -14,7 +14,7 @@ import intervaltree as ivt
 import matplotlib.pyplot as plt
 
 def load_limited_solo12(free_joints, floor_z = 0.0, visualize = False):
-    pkg_path = "C:\\Users\\rafael\\Projects\\Quadruped\\optimization\\"
+    pkg_path = os.path.dirname(__file__)
     urdf_path = os.path.join(pkg_path, "example-robot-data/robots/solo_description/robots/solo12.urdf")
 
     # Load full URDF. This creates a RobotWrapper that contains both the read-only model and the data:
@@ -36,14 +36,14 @@ def load_limited_solo12(free_joints, floor_z = 0.0, visualize = False):
     limited_robot.initViewer()
     limited_robot.loadViewerModel()
 
-    # Add floor visual geometry:
-    floor_obj = pin.GeometryObject(
-        "floor", 0, 0, hppfcl.Box(2, 2, 0.005),
-        pin.SE3(np.eye(3), np.array([0, 0, floor_z]))
-    )
+    # # Add floor visual geometry:
+    # floor_obj = pin.GeometryObject(
+    #     "floor", 0, 0, hppfcl.Box(2, 2, 0.005),
+    #     pin.SE3(np.eye(3), np.array([0, 0, floor_z]))
+    # )
 
-    floor_obj.meshColor = np.array([0.3, 0.3, 0.3, 1])
-    visualizer.addGeometryObject(floor_obj)
+    # floor_obj.meshColor = np.array([0.3, 0.3, 0.3, 1])
+    # visualizer.addGeometryObject(floor_obj)
 
     limited_robot.display(pin.neutral(limited_robot.model))
     return limited_robot, visualizer
@@ -151,7 +151,7 @@ class ForwardDynamics(ca.Callback):
     pin.updateFramePlacements(self.robot.model, self.robot.data)
 
     for j_fr_id in self.joint_frame_ids:
-        total_grf = pin.Force()
+        total_grf = pin.Force.Zero()
         X_o_joint = robot.data.oMf[j_fr_id]
 
         for f_idx, f_fr_id in enumerate(self.foot_frame_ids):
@@ -175,7 +175,7 @@ class ForwardDynamics(ca.Callback):
     # NOTE: Joints[0] is the 'universe' joint - do not apply any forces there.
     # This is strange because when you do .njoints you get = 1.
     return pin.aba(
-        self.robot.model, self.robot.data, q, v, tau, [pin.Force(), *grf_at_joints]
+        self.robot.model, self.robot.data, q, v, tau, [pin.Force.Zero(), *grf_at_joints]
     )
 
 if __name__ == "__main__":

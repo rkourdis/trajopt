@@ -288,7 +288,8 @@ if __name__ == "__main__":
             "g": ca.vertcat(*g)
         }
 
-        solver = ca.nlpsol("S", "ipopt", nlp)
+        ipopt_settings = {"linear_solver": "ma57"}
+        solver = ca.nlpsol("S", "ipopt", nlp, {"ipopt": ipopt_settings})
 
         #### INITIAL GUESS ####
         # Assume that we'll be falling for the first 1/4 of the trajectory.

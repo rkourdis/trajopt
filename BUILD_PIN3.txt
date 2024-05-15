@@ -71,6 +71,7 @@ sudo make install
 ### Pinocchio 3
 ----------------------
 # sudo apt-get install libsdformat-dev
+pip3 install --no-deps liecasadi
 
 git clone https://github.com/stack-of-tasks/pinocchio.git && cd pinocchio && git checkout pinocchio3-preview
 git submodule update --init --recursive

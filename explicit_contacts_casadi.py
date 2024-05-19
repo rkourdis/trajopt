@@ -87,45 +87,6 @@ class GRF:
     t: float
     λ: float
 
-class FootholdKinematics(ca.Callback):
-    def __init__(self, name: str, robot, feet: list[str], opts={}):
-        ca.Callback.__init__(self)
-        self.robot = robot
-        self.ff_ids = [robot.model.getFrameId(f) for f in feet]
-        self.construct(name, opts)
-
-    def get_n_in(self): return 3    # q, v, a of robot (joint space)
-    def get_sparsity_in(self, idx: int):
-        return ca.Sparsity.dense(
-            self.robot.nq if idx == 0 else self.robot.nv, 1
-        )
-    
-    # foot frame positions (oMf), velocities, accelerations (in local world-aligned coords)
-    def get_n_out(self): return 3
-    def get_sparsity_out(self, _: int):
-        return ca.Sparsity.dense(len(self.ff_ids), 3)
-    
-    def eval(self, arg):
-        q, v, a = np.array(arg[0]), np.array(arg[1]), np.array(arg[2])
-
-        # This runs the second-order FK algorithm and returns:
-        # - The positions of all feet wrt the origin
-        # - The velocities of all feet in the local world-aligned frame
-        # - The accelerations of all feet in the local world-aligned frame
-
-        pin.forwardKinematics(robot.model, robot.data, q, v, a)
-        pin.updateFramePlacements(robot.model, robot.data)
-
-        get_pos = lambda fid: robot.data.oMf[fid].translation
-        get_vel = lambda fid: pin.getFrameVelocity(robot.model, robot.data, fid, pin.LOCAL_WORLD_ALIGNED).linear
-        get_acc = lambda fid: pin.getFrameAcceleration(robot.model, robot.data, fid, pin.LOCAL_WORLD_ALIGNED).linear
-
-        return (
-            np.stack([get_pos(f) for f in self.ff_ids]),
-            np.stack([get_vel(f) for f in self.ff_ids]),
-            np.stack([get_acc(f) for f in self.ff_ids])
-        )
-
 class ADFootholdKinematics():
     def __init__(self, cmodel, cdata, feet: list[str]):
         self.cmodel = cmodel
@@ -256,6 +217,19 @@ if __name__ == "__main__":
             # Residual constraints for accelerations (= 0) at all collocation points:
             add_equality(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], λ_k[k]))
             ##############################
+
+            print(fd(q_k[k], v_k[k], tau_k[k], λ_k[k]))
+
+            J = ca.Function(
+                "J",
+                [q_k[k], v_k[k], tau_k[k], λ_k[k]],
+                [ca.jacobian(fd(q_k[k], v_k[k], tau_k[k], λ_k[k]), q_k[k])]
+            )
+
+            print(fd(q_k[k], v_k[k], tau_k[k], λ_k[k]))
+            print(J(q_k[k], v_k[k], tau_k[k], λ_k[k]))
+            exit()
+
 
             #### CONTACT CONSTRAINTS ####
             f_pos, _, f_acc = fk(q_k[k], v_k[k], a_k[k])

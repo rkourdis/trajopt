@@ -4,6 +4,7 @@ import hppfcl
 import pickle
 import functools
 from tqdm import tqdm
+from itertools import chain
 from typing import Optional
 from dataclasses import dataclass
 
@@ -124,14 +125,14 @@ class ADForwardDynamics():
         """
         Input:
         --------
-        q (19 x 1), v (18 x 1), τ_act (12 x 1), λ (4  x 1), z-up
+        q (19 x 1), v (18 x 1), τ_act (12 x 1), λ (4  x 3), z-up local world aligned
 
         Output:
         --------
         (18 x 1)
         """
 
-        # λ contains normal GRFs for each foot.
+        # λ contains GRFs for each foot.
         # Find how they're expressed in all actuated joint frames at
         # the provided robot state. FK will populate robot.data.oMf.
         cpin.framesForwardKinematics(self.cmodel, self.cdata, q)
@@ -151,9 +152,7 @@ class ADForwardDynamics():
 
             # For each foot:
             for foot_idx in range(len(self.foot_frame_ids)):
-                grf_lin = ca.SX.zeros(3)
-                grf_lin[2] = λ[foot_idx][0]
-                grf_at_foot = cpin.Force(grf_lin, ca.SX.zeros(3))
+                grf_at_foot = cpin.Force(λ[foot_idx, :].T, ca.SX.zeros(3))
 
                 # Express foot GRF in the joint frame and add up for all feet:
                 total_grf += X_o_joint.actInv(
@@ -265,7 +264,7 @@ if __name__ == "__main__":
     # The order of forces per foot WILL be in this order:
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
-    FREQ_HZ = 10
+    FREQ_HZ = 40
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.3
     
@@ -283,7 +282,7 @@ if __name__ == "__main__":
     fd = ADForwardDynamics(cmodel, cdata, actuated_joints, feet = FEET)
     fk = ADFootholdKinematics(cmodel, cdata, feet = FEET)
 
-    q_k, v_k, a_k, tau_k, λ_k, foot_z_k = [], [], [], [], [], []  # Collocation variables
+    q_k, v_k, a_k, tau_k, λ_k = [], [], [], [], []  # Collocation variables
 
     #region Constraint utilities
     constraints = []
@@ -313,13 +312,14 @@ if __name__ == "__main__":
     # time:
     def traj_err(t, q, v, a, τ):
         DESIRED_COM_Z = -0.1
-        return (q[2] - DESIRED_COM_Z) ** 2
+        return (q[2] - DESIRED_COM_Z) ** 2 + (q[0]) ** 2 + (q[1]) ** 2
 
     #endregion
 
     N_knots = int(duration * FREQ_HZ) + 1
     
     # print("Creating variables and constraints...")
+    #"""
 
     for k in range(N_knots):
         #region Collocation variable creation
@@ -330,8 +330,7 @@ if __name__ == "__main__":
         a_k.append(ca.SX.sym(f"a_{k}", robot.nv))   # 18 x 1
 
         tau_k.append(ca.SX.sym(f"τ_{k}", len(actuated_joints)))  # 12 x 1 
-        λ_k.append(ca.SX.sym(f"λ_{k}", len(FEET)))               # 4  x 1
-        foot_z_k.append(ca.SX.sym(f"foot_z_{k}", len(FEET)))     # 4  x 1
+        λ_k.append(ca.SX.sym(f"λ_{k}", len(FEET), 3))            # 4  x 3
         
         #endregion
 
@@ -347,29 +346,29 @@ if __name__ == "__main__":
         ##############################
         #### CONTACT CONSTRAINTS #####
         ##############################
-        f_pos, _, f_acc = fk(q_k[k], v_k[k], a_k[k])
-        add_equality(foot_z_k[k] - f_pos[:, 2])          # foot_z[k] should contain all foot heights
+        f_pos, f_vel, _ = fk(q_k[k], v_k[k], a_k[k])         # All 4 x 3
 
         # Enforce constraints for all feet:
         for idx, foot in enumerate(FEET):
 
             # If that particular foot is in contact with the ground:
             if contact_times[idx].overlaps(k * DELTA_T):
-                add_equality(foot_z_k[k][idx] - FLOOR_Z)     # Foot should be stable on the floor
-                add_inequality(λ_k[k][idx])                  # Contact forces available
+                add_equality(f_pos[idx, 2] - FLOOR_Z)        # Foot should be at the floor height
+                add_equality(f_vel[idx, :])                  # Foot should not move
+                add_inequality(λ_k[k][idx, 2])               # Z-up contact force available
                 
-                # Foot Z acceleration should be zero - this is to avoid issues with the optimizer
-                # tricking the integration scheme and applying oscillating torques and GRFs while
-                # on the floor (such that foot_z = 0 after trapezoidal integration...)
-                add_equality(f_acc[idx, 2])
+                # # Foot Z acceleration should be zero - this is to avoid issues with the optimizer
+                # # tricking the integration scheme and applying oscillating torques and GRFs while
+                # # on the floor (such that foot_z = 0 after trapezoidal integration...)
+                # add_equality(f_acc[idx, 2])
             else:
-                add_inequality(foot_z_k[k][idx] - FLOOR_Z)   # TODO: Change this to strict inequality?
-                add_equality(λ_k[k][idx])                    # Contact forces unavailable
+                add_inequality(f_pos[idx, 2] - FLOOR_Z)      # TODO: Change this to strict inequality?
+                add_equality(λ_k[k][idx, :])                 # Contact forces unavailable
         #############################
 
         #### JOINT LIMITS ####
-        add_inequality(tau_k[k] + 4)    # τ >= -4
-        add_inequality(4 - tau_k[k])    # τ <= 4
+        # add_inequality(tau_k[k] + 4)    # τ >= -4
+        # add_inequality(4 - tau_k[k])    # τ <= 4
         ######################
 
         #endregion
@@ -414,12 +413,15 @@ if __name__ == "__main__":
     print("Creating NLP description...")
 
     # Create the NLP problem:
+    def flatten(mats: list[ca.SX]):
+        return chain.from_iterable(ca.horzsplit(m) for m in mats)
+    
     g, lbg, ubg = zip(*constraints)
 
     nlp = {
-        "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k, *λ_k, *foot_z_k),
+        "x": ca.vertcat(*q_k, *v_k, *a_k, *tau_k, *flatten(λ_k)), #, *foot_z_k),
         "f": obj,
-        "g": ca.vertcat(*g)
+        "g": ca.vertcat(*flatten(g))
     }
 
     print("Instantiating solver...")
@@ -441,24 +443,24 @@ if __name__ == "__main__":
     print("Creating initial guesses...")
 
     # Assume that nothing changes as I'm very lazy:
-    q_sym, v_sym, a_sym = ca.SX.sym("q_s", cmodel.nq), ca.SX.sym("v_s", cmodel.nv), ca.SX.sym("a_s", cmodel.nv)
-    num_fk = ca.Function("num_fk", [q_sym, v_sym, a_sym], fk(q_sym, v_sym, a_sym))
+    # q_sym, v_sym, a_sym = ca.SX.sym("q_s", cmodel.nq), ca.SX.sym("v_s", cmodel.nv), ca.SX.sym("a_s", cmodel.nv)
+    # num_fk = ca.Function("num_fk", [q_sym, v_sym, a_sym], fk(q_sym, v_sym, a_sym))
 
     q_g  = [initial_state.q for _ in range(N_knots)]
     v_g  = [initial_state.v for _ in range(N_knots)]
     a_g  = [np.zeros((robot.nv, 1)) for _ in range(N_knots)]
     τ_g  = [np.zeros((len(actuated_joints), 1)) for _ in range(N_knots)]
-    λ_g  = [np.zeros((len(FEET), 1)) for _ in range(N_knots)]
-    fz_g = [np.array(num_fk(q_g[0], v_g[0], a_g[0])[0][:, 2]) for _ in range(N_knots)]
+    λ_g  = [np.zeros((len(FEET), 3)) for _ in range(N_knots)]
+    # fz_g = [np.array(num_fk(q_g[0], v_g[0], a_g[0])[0][:, 2]) for _ in range(N_knots)]
     ########################
 
     #endregion
 
     # Solve the problem!
     soln = solver(
-        x0  = ca.vertcat(*q_g, *v_g, *a_g, *τ_g, *λ_g, *fz_g),
-        lbg = ca.vertcat(*lbg),
-        ubg = ca.vertcat(*ubg)
+        x0  = ca.vertcat(*q_g, *v_g, *a_g, *τ_g, *flatten(λ_g)), #, *fz_g),
+        lbg = ca.vertcat(*flatten(lbg)),
+        ubg = ca.vertcat(*flatten(ubg))
     )
 
     success = solver.stats()["success"] 
@@ -471,10 +473,10 @@ if __name__ == "__main__":
 
 
     # ####################################################################
-
     exit()
+    # """
 
-    with open("solution_10hz_1sec.bin", "rb") as rf:
+    with open("solution_40hz_1sec.bin", "rb") as rf:
         soln = pickle.load(rf)
 
     variables = soln["x"]
@@ -502,3 +504,4 @@ if __name__ == "__main__":
     for idx, q in enumerate(qs):
         robot.display(pin.normalize(robot.model, q))
         time.sleep(DELTA_T)
+        input()

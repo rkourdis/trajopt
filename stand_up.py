@@ -189,56 +189,17 @@ class ADForwardDynamics():
 # Custom state integration functions. This is to avoid 
 # numerical issues with pin3's integrate during Hessian calculation.
 #   Please see: https://github.com/stack-of-tasks/pinocchio/issues/2050 for a similar issue
-from liecasadi import SO3, SO3Tangent
-
-# TODO: Calculate this with liecasadi.SE3 - use the act() operator
-
-def integrate_se3_custom(q: ca.SX, v: ca.SX):
-    q_lin, q_rot = q[:3], q[3:7]
-    v, ω = v[:3], v[3:6]
-
-    # Calculate integrated quaternion (Lie +):
-    q_rot_so3, v_rot_so3t = SO3(q_rot), SO3Tangent(ω) 
-    result_rot = (q_rot_so3 + v_rot_so3t).xyzw
-
-    # Caclulate integrated linear position (q_lin + q_rot @ exp(v)_rot)
-    # We'll evaluate the rotational part of exp(v) as:
-    # exp(v)_rot = V @ v_lin with:
-    # V = I + ((1-cosθ)/ θ**2)ωx + ((1 - sinθ/θ) / θ**2)ωx**2
-    θ = ca.sqrt(ω.T @ ω + 1e-6)
-    θ_sq = θ * θ
-
-    # ω_hat = [
-    #     [0,    -ω[2],  ω[1]],
-    #     [ω[2],    0,  -ω[0]],
-    #     [-ω[1], ω[0],    0]
-    # ]
-    ω_hat = ca.SX.zeros(3, 3)
-    ω_hat[0, 1] = -ω[2]
-    ω_hat[0, 2] =  ω[1]
-    ω_hat[1, 0] =  ω[2]
-    ω_hat[1, 2] =  -ω[0]
-    ω_hat[2, 0] =  -ω[1]
-    ω_hat[2, 1] =   ω[0]
-
-    A = ca.sin(θ) / θ
-    B = (1 - ca.cos(θ)) / θ_sq
-    C = (1 - A) / θ_sq
-
-    V = ca.SX.eye(3) + B * ω_hat + C * ω_hat @ ω_hat 
-    result_lin = q_lin + q_rot_so3.act(V @ v)
-    return ca.vertcat(result_lin, result_rot)
+from liecasadi import SE3, SE3Tangent
 
 def integrate_custom(q: ca.SX, v: ca.SX):
     q_se3, v_se3 = q[:7], v[:6]
 
-    # Integrate the floating joint using the Lie
-    # operation:
-    floating_res = integrate_se3_custom(q_se3, v_se3)
+    # Integrate the floating joint using the Lie operation:
+    fb_r_se3 = SE3(pos = q_se3[:3], xyzw = q_se3[3:]) * SE3Tangent(v_se3).exp()
 
     # Integrate revolute joints normally:
-    revolute_res = q[7:] + v[6:]
-    return ca.vertcat(floating_res, revolute_res)
+    r_r = q[7:] + v[6:]
+    return ca.vertcat(fb_r_se3.pos, fb_r_se3.xyzw, r_r)
 # =====================================================
 
 if __name__ == "__main__":
@@ -264,7 +225,7 @@ if __name__ == "__main__":
     # The order of forces per foot WILL be in this order:
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
-    FREQ_HZ = 40
+    FREQ_HZ = 10
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.3
     

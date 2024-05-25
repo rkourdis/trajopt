@@ -53,7 +53,7 @@ sudo make install
 sudo apt-get install swig3.0
 git clone https://github.com/casadi/casadi.git casadi && cd casadi && git checkout 3.6.5
 mkdir build && cd build
-cmake -DWITH_PYTHON=ON -DWITH_PYTHON3=ON -DWITH_IPOPT=ON ..
+KNITRO="/home/rafael/knitro-14.0.0-Linux64/" cmake -DWITH_PYTHON=ON -DWITH_PYTHON3=ON -DWITH_IPOPT=ON -DWITH_KNITRO=ON ..
 make
 sudo make install
 echo 'export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH' >> ~/.bashrc && source ~/.bashrc
@@ -80,3 +80,9 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_URDF_SUPPORT=ON -DBUILD_WITH_SD
 make
 sudo make install
 echo 'export PYTHONPATH=/usr/local/lib/python3/dist-packages/:$PYTHONPATH' >> ~/.bashrc && source ~/.bashrc
+
+-----
+# Patch bug https://github.com/stack-of-tasks/pinocchio/issues/2050
+#cd ../
+# wget https://github.com/modu-robotics/pinocchio/commit/83d044f3e2177e39c301c22c94cbb00d707cd72e.patch
+# git apply 83d044f3e2177e39c301c22c94cbb00d707cd72e.patch

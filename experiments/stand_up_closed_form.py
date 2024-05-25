@@ -82,12 +82,25 @@ if __name__ == "__main__":
     feet_forces_local = np.linalg.pinv(J_baseq_wrt_feetxyz) @ g[:6]
     foot_force_local = np.split(feet_forces_local, len(FEET))
 
-    print("LOCAL FORCES")
-    print(foot_force_local)
-    # exit()
-    
     contact_forces_at_bl = []
     pin.framesForwardKinematics(robot.model, robot.data, q)
+
+    foot_force_local_wa = []
+
+    for idx, lf in enumerate(foot_force_local):
+        local_force = pin.Force(lf, np.zeros(3))
+        local_frame = robot.data.oMf[foot_fr_ids[idx]]
+
+        local_wa_frame = pin.SE3(np.eye(3), robot.data.oMf[foot_fr_ids[idx]].translation)
+        local_wa_force = local_wa_frame.actInv(local_frame.act(local_force))
+
+        foot_force_local_wa.append(local_wa_force.linear)
+
+    print("LOCAL FORCES")
+    print(foot_force_local)
+
+    print("LOCAL WA FORCES")
+    print(foot_force_local_wa)
 
     for idx, foot_frame_id in enumerate(foot_fr_ids):
         f_bl = robot.data.oMf[joint_frame_ids[0]].actInv(robot.data.oMf[foot_frame_id]).act(
@@ -149,7 +162,8 @@ if __name__ == "__main__":
             "q": q,
             "feet": FEET,
             "tau": tau,
-            "λ_local": feet_forces_local
+            "λ_local": feet_forces_local,
+            "λ_local_wa": np.concatenate(foot_force_local_wa)
         }
 
         pickle.dump(data, wf)

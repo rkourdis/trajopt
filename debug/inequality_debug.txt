@@ -1,0 +1,118 @@
+======================================================
+# With [-inf, +inf] constraint and valid initial guess:
+======================================================
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+This is Ipopt version 3.14.16, running with linear solver ma57.
+
+Number of nonzeros in equality constraint Jacobian...:       36
+Number of nonzeros in inequality constraint Jacobian.:        0
+Number of nonzeros in Lagrangian Hessian.............:       18
+
+Total number of variables............................:      540
+                     variables with only lower bounds:        0
+                variables with lower and upper bounds:        0
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:       36
+Total number of inequality constraints...............:        0
+        inequality constraints with only lower bounds:        0
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:        0
+
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+   0  0.0000000e+00 0.00e+00 0.00e+00  -1.0 0.00e+00    -  0.00e+00 0.00e+00   0
+
+Number of Iterations....: 0
+
+                                   (scaled)                 (unscaled)
+Objective...............:   0.0000000000000000e+00    0.0000000000000000e+00
+Dual infeasibility......:   0.0000000000000000e+00    0.0000000000000000e+00
+Constraint violation....:   0.0000000000000000e+00    0.0000000000000000e+00
+Variable bound violation:   0.0000000000000000e+00    0.0000000000000000e+00
+Complementarity.........:   0.0000000000000000e+00    0.0000000000000000e+00
+Overall NLP error.......:   0.0000000000000000e+00    0.0000000000000000e+00
+
+
+Number of objective function evaluations             = 1
+Number of objective gradient evaluations             = 1
+Number of equality constraint evaluations            = 1
+Number of inequality constraint evaluations          = 0
+Number of equality constraint Jacobian evaluations   = 1
+Number of inequality constraint Jacobian evaluations = 0
+Number of Lagrangian Hessian evaluations             = 0
+Total seconds in IPOPT                               = 0.001
+
+EXIT: Optimal Solution Found.
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+       nlp_f  |   1.00us (  1.00us)   1.08us (  1.08us)         1
+       nlp_g  |   3.00us (  3.00us)   2.51us (  2.51us)         1
+  nlp_grad_f  |  11.00us (  5.50us)  10.71us (  5.36us)         2
+   nlp_jac_g  |   4.00us (  2.00us)   3.10us (  1.55us)         2
+       total  |   1.16ms (  1.16ms)   1.25ms (  1.25ms)         1
+
+======================================================
+# With [0, +inf] constraint and valid initial guess:
+======================================================
+
+******************************************************************************
+This program contains Ipopt, a library for large-scale nonlinear optimization.
+ Ipopt is released as open source code under the Eclipse Public License (EPL).
+         For more information visit https://github.com/coin-or/Ipopt
+******************************************************************************
+
+This is Ipopt version 3.14.16, running with linear solver ma57.
+
+Number of nonzeros in equality constraint Jacobian...:       36
+Number of nonzeros in inequality constraint Jacobian.:       24
+Number of nonzeros in Lagrangian Hessian.............:       18
+
+Total number of variables............................:      540
+                     variables with only lower bounds:        0
+                variables with lower and upper bounds:        0
+                     variables with only upper bounds:        0
+Total number of equality constraints.................:       36
+Total number of inequality constraints...............:       24
+        inequality constraints with only lower bounds:       24
+   inequality constraints with lower and upper bounds:        0
+        inequality constraints with only upper bounds:        0
+
+iter    objective    inf_pr   inf_du lg(mu)  ||d||  lg(rg) alpha_du alpha_pr  ls
+   0  0.0000000e+00 0.00e+00 5.00e-01  -1.0 0.00e+00    -  0.00e+00 0.00e+00   0
+   1  0.0000000e+00 0.00e+00 9.99e-03  -1.0 9.99e-02  -4.0 9.90e-01 1.00e+00f  1
+   2  0.0000000e+00 0.00e+00 1.92e-05  -2.5 2.72e-01  -4.5 9.99e-01 1.00e+00f  1
+   3  0.0000000e+00 0.00e+00 1.19e-07  -5.7 1.07e-02  -5.0 1.00e+00 1.00e+00f  1
+   4  0.0000000e+00 0.00e+00 6.94e-09  -7.0 1.87e-03  -5.4 1.00e+00 1.00e+00f  1
+
+Number of Iterations....: 4
+
+                                   (scaled)                 (unscaled)
+Objective...............:   0.0000000000000000e+00    0.0000000000000000e+00
+Dual infeasibility......:   6.9449780357129339e-09    6.9449780357129339e-09
+Constraint violation....:   0.0000000000000000e+00    0.0000000000000000e+00
+Variable bound violation:   0.0000000000000000e+00    0.0000000000000000e+00
+Complementarity.........:   9.0490261421532503e-08    9.0490261421532503e-08
+Overall NLP error.......:   9.0490261421532503e-08    9.0490261421532503e-08
+
+
+Number of objective function evaluations             = 5
+Number of objective gradient evaluations             = 5
+Number of equality constraint evaluations            = 5
+Number of inequality constraint evaluations          = 5
+Number of equality constraint Jacobian evaluations   = 5
+Number of inequality constraint Jacobian evaluations = 5
+Number of Lagrangian Hessian evaluations             = 4
+Total seconds in IPOPT                               = 0.002
+
+EXIT: Optimal Solution Found.
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+       nlp_f  |   8.00us (  1.60us)   7.98us (  1.60us)         5
+       nlp_g  |  11.00us (  2.20us)   8.40us (  1.68us)         5
+  nlp_grad_f  |  16.00us (  2.67us)  17.36us (  2.89us)         6
+  nlp_hess_l  |   6.00us (  1.50us)   5.62us (  1.41us)         4
+   nlp_jac_g  |   7.00us (  1.17us)   7.10us (  1.18us)         6
+       total  |   1.93ms (  1.93ms)   2.08ms (  2.08ms)         1

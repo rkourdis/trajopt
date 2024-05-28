@@ -2,3 +2,5 @@
 resources/
 casadi/
 example-robot-data/*
+
+__pycache__/

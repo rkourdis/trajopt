@@ -4,6 +4,12 @@ import pinocchio as pin
 from itertools import chain
 from liecasadi import SE3, SE3Tangent
 
+# This will switch an MRP to its shadow, if it is outside the 
+# unit norm sphere. This is to avoid the singularity at 2π.
+# However, doing this makes gradient-based optimisation difficult,
+# because of the discontinuity.
+# TODO: I think the Lie library is switching the MRP too!
+#       Try rotating with constant velocity...
 def switch_mrp(mrp: ca.SX) -> ca.SX:
     if not hasattr(switch_mrp, "ca_mrp_switch"):
         mrp_sym = ca.SX.sym("mrp_sym", 3, 1)
@@ -24,7 +30,9 @@ def switch_mrp(mrp: ca.SX) -> ca.SX:
 # Quaternion in xyzw form to MRP:
 def quat2mrp(xyzw: ca.SX) -> ca.SX:
     norm = xyzw / ca.sqrt(xyzw.T @ xyzw)
-    return switch_mrp(norm[:3] / (1 + norm[3]))
+    
+    # return switch_mrp(norm[:3] / (1 + norm[3]))
+    return norm[:3] / (1 + norm[3])
 
 # MRP to quaternion in xyz form:
 def mrp2quat(xyz: ca.SX) -> ca.SX:

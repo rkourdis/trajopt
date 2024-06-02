@@ -67,11 +67,11 @@ class VariableBounds:
         for i in range(expr.shape[0]):
             for j in range(expr.shape[1]):
                 var = expr[i, j]
-
                 assert var.is_symbolic(), "Bound expression contains non-leaf entries"
-                assert var.name() not in self.bounds, f"Cannot constrain {var} twice"
-
-                self.bounds[var.name()] = (lb, ub)
+                
+                # If there's an existing bound, make it tighter:
+                existing_bound = self.get_bounds(var.name())
+                self.bounds[var.name()] = (max(lb, existing_bound[0]), min(ub, existing_bound[1]))
     
     def get_bounds(self, var_name: str) -> tuple[float, float]:
         return b if (b := self.bounds.get(var_name)) else (-ca.inf, ca.inf)

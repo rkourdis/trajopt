@@ -6,7 +6,7 @@ import intervaltree as ivt
 from dataclasses import dataclass
 
 from utilities import ε
-from initialisations import Guess, load_initial_guess
+from poses import Pose, load_robot_pose
 
 @dataclass
 class Task:
@@ -45,30 +45,10 @@ JUMP_TASK: Task = Task(
     traj_error = lambda t, q, v, a, τ: ca.sqrt(τ.T @ τ),
 
     # Feet must be in a standing V configuration at the beginning and end:
-    q_initial = load_initial_guess(Guess.STANDING_V)[0],
+    q_initial = load_robot_pose(Pose.STANDING_V)[0],
     q_final   = None,
-    # q_final   = load_initial_guess(Guess.STANDING_V)[0],
 
     # The robot should be stable at the beginning and end:
     v_initial = np.zeros((18, 1)),
     v_final   = np.zeros((18, 1)),
 )
-
-
-"""
-# Trajectory error function. 
-        def traj_err(t, q, v, a, τ):
-            if contact_times[0].overlaps(t):
-                return τ.T @ τ #+ (q[:3].T @ q[:3]) * 1e-1
-
-            return 
-            # if 1.0 <= t and t < 1.5:
-            #     com_orientation_err = q[:6] - ca.SX([0, 0, 0.2, 0.0, 0.0, 0.0])
-            #     return com_orientation_err.T @ com_orientation_err + v[6:].T @ v[6:]
-
-            # z_des = ca.sin(2 * ca.pi * t) * 0.1
-            # com_orientation_err = q[:6] - ca.SX([0, 0, z_des, 0.0, 0.0, 0.0])
-            # return com_orientation_err.T @ com_orientation_err + v[6:].T @ v[6:]
-        
-
-"""

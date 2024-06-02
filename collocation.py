@@ -54,7 +54,7 @@ if __name__ == "__main__":
     q_k, v_k, a_k, tau_k, λ_k, f_pos_k = [], [], [], [], [], []
 
     for k in range(N_KNOTS):
-        q_k.append(ca.SX.sym(f"q_{k}", robot.nq - 1))   # We will represent orientations with MRP instead of quaternions
+        q_k.append(ca.SX.sym(f"q_{k}", robot.nq))       # 19 x 1
         v_k.append(ca.SX.sym(f"v_{k}", robot.nv))       # 18 x 1
         a_k.append(ca.SX.sym(f"a_{k}", robot.nv))       # 18 x 1
 
@@ -88,6 +88,11 @@ if __name__ == "__main__":
         constraints.append(
             # Forward foothold kinematics:
             Constraint(f_pos_k[k] - fk(q_k[k]))
+        )
+
+        constraints.append(
+            # Quaternion unit norm constraint:
+            Constraint(q_k[k][3:7].T @ q_k[k][3:7] - 1)
         )
 
         # Integration constraints:

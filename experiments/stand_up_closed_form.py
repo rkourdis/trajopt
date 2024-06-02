@@ -157,11 +157,11 @@ if __name__ == "__main__":
     print("ALPHA WITH RNEA TAU:", a_rnea_tau)
 
     import pickle
-    from utilities import ca_to_np, q_quat_to_mrp
+    from utilities import ca_to_np
 
-    with open("standing_pose.bin", "wb") as wf:
+    with open("standing_pose_quat.bin", "wb") as wf:
         data = {
-            "q": ca_to_np(q_quat_to_mrp(q)),
+            "q": ca_to_np(q),
             "v": np.zeros((robot.model.nv, 1)),
             "feet": FEET,
             "tau": tau.reshape((len(tau), 1)),

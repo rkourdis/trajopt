@@ -9,7 +9,7 @@ from utilities import flatten, unflatten
 @dataclass
 class Trajectory:
     num_knots: int
-    q_k: list[np.array]     = None    # 18x1
+    q_k: list[np.array]     = None    # 19x1
     v_k: list[np.array]     = None    # 18x1
     a_k: list[np.array]     = None    # 18x1
     tau_k: list[np.array]   = None    # 12x1
@@ -26,7 +26,7 @@ class Trajectory:
     def load_from_vec(num_knots: int, robot: pin.RobotWrapper, vec: ca.DM):
         traj = Trajectory(num_knots = num_knots)
 
-        o, sz = 0, robot.nq - 1
+        o, sz = 0, robot.nq
         traj.q_k = unflatten(vec[o : o + num_knots * sz], (sz, 1))
 
         o, sz = o + sz * num_knots, robot.nv

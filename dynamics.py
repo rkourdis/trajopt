@@ -1,6 +1,5 @@
 import casadi as ca
 from pinocchio import casadi as cpin
-from utilities import q_mrp_to_quat
 
 # Autodiff forward dynamics using CasADi.
 # Given the robot's state, velocity, torques at all joints and foot GRFs, this
@@ -19,20 +18,17 @@ class ADForwardDynamics():
         # Joint IDs of each foot's frame parent joint:
         self.foot_parent_joint_ids = [cmodel.frames[ff_id].parentJoint for ff_id in self.foot_frame_ids]
 
-    def __call__(self, q_mrp: ca.SX, v: ca.SX, τ_act: ca.SX, λ: ca.SX):
+    def __call__(self, q_quat: ca.SX, v: ca.SX, τ_act: ca.SX, λ: ca.SX):
         # Input:
-        # q (18 x 1, MRP), v (18 x 1), τ_act (12 x 1), λ (4  x 3) in local world aligned frame
+        # q (18 x 1, quat), v (18 x 1), τ_act (12 x 1), λ (4  x 3) in local world aligned frame
 
         # Output:
         # a (18 x 1)
 
-        # Convert the floating base orientation to quaternion for Pinocchio:
-        q = q_mrp_to_quat(q_mrp)
-
         # λ contains GRFs for each foot in the local world-aligned frame.
         # Find how they're expressed in the parent joint frames at the given
         # robot state. FK will populate robot.data.oMf.
-        cpin.framesForwardKinematics(self.cmodel, self.cdata, q)
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q_quat)
         fext_full = [cpin.Force.Zero() for _ in range(len(self.cmodel.joints))]
 
         for foot_idx, (foot_frame_id, parent_joint_id) in enumerate(
@@ -63,4 +59,4 @@ class ADForwardDynamics():
         for act_dof, j_id in enumerate(self.act_joint_ids):
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
-        return cpin.aba(self.cmodel, self.cdata, q, v, tau_full, fext_full)
+        return cpin.aba(self.cmodel, self.cdata, q_quat, v, tau_full, fext_full)

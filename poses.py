@@ -6,7 +6,7 @@ class Pose(Enum):
 
 def load_robot_pose(pose_type: Pose):
     blobs = {
-        Pose.STANDING_V: "standing_pose.bin"
+        Pose.STANDING_V: "standing_pose_quat.bin"
     }
 
     with open(f"robot_poses/{blobs[pose_type]}", "rb") as rf:

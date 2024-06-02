@@ -4,52 +4,6 @@ import pinocchio as pin
 from itertools import chain
 from liecasadi import SE3, SE3Tangent
 
-# This will switch an MRP to its shadow, if it is outside the 
-# unit norm sphere. This is to avoid the singularity at 2π.
-# However, doing this makes gradient-based optimisation difficult,
-# because of the discontinuity.
-# TODO: I think the Lie library is switching the MRP too!
-#       Try rotating with constant velocity...
-def switch_mrp(mrp: ca.SX) -> ca.SX:
-    if not hasattr(switch_mrp, "ca_mrp_switch"):
-        mrp_sym = ca.SX.sym("mrp_sym", 3, 1)
-
-        # Make a static CasADi symbolic function that will return the switched MRP,
-        # given the switching criterion:
-        switch_mrp.ca_mrp_switch = ca.Function.if_else(
-            "ca_mrp_switch",
-            ca.Function("ca_mrp_switch_true",   [mrp_sym], [-mrp_sym / (mrp_sym.T @ mrp_sym)]),
-            ca.Function("ca_mrp_switch_false",  [mrp_sym], [mrp_sym])
-        )
-
-    # When a value is actually requested, return the calculation
-    # using the already computed symbolic expression:
-    norm = mrp.T @ mrp
-    return switch_mrp.ca_mrp_switch(norm > 1, mrp)
-
-# Quaternion in xyzw form to MRP:
-def quat2mrp(xyzw: ca.SX) -> ca.SX:
-    norm = xyzw / ca.sqrt(xyzw.T @ xyzw)
-    
-    # return switch_mrp(norm[:3] / (1 + norm[3]))
-    return norm[:3] / (1 + norm[3])
-
-# MRP to quaternion in xyz form:
-def mrp2quat(xyz: ca.SX) -> ca.SX:
-    normsq = xyz.T @ xyz
-    w = (ca.SX.ones(1) - normsq) / (1 + normsq)
-    return ca.vertcat(2 * xyz / (1 + normsq), w)
-
-# State using MRP for base orientation to state with quaternion.
-# We assume the floating base is at [0:6] -> x, y, z, mrp
-def q_mrp_to_quat(q_mrp: ca.SX) -> ca.SX:
-    return ca.vertcat(q_mrp[:3], mrp2quat(q_mrp[3:6]), q_mrp[6:])
-
-# State using quaternion for base orientation to state with MRP.
-# We assume the floating base is at [0:7] -> x, y, z, xyzw
-def q_quat_to_mrp(q_quat: ca.SX) -> ca.SX:
-    return ca.vertcat(q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:])
-
 # Given a dictionary of {"JOINT_NAME": angle} pairs, return a state vector
 # with all joints at the neutral configuration except those in the dictionary,
 # which will be set at the provided angles.
@@ -61,25 +15,23 @@ def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float])
         idx = robot.model.getJointId(j_name)
         q_quat[robot.model.joints[idx].idx_q] = angle
 
-    q_mrp = np.concatenate((q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:]))
-    return np.expand_dims(q_mrp, axis = -1)     # 18x1
+    return np.expand_dims(q_quat, axis = -1)     # 19x1
 
 # Custom state integration function. This is to avoid 
 # numerical issues with pin3's integrate during Hessian calculation.
 #  Please see: https://github.com/stack-of-tasks/pinocchio/issues/2050 for a similar issue
 # Calculates the result of integrating v for a unit timestep starting from q.
 # We assume the input / output floating base orientation uses MRP.
-def integrate_state(q_mrp: ca.SX, v: ca.SX):
-    q = q_mrp_to_quat(q_mrp)
-    q_se3 = SE3(pos = q[:3], xyzw = q[3:7])
+def integrate_state(q_quat: ca.SX, v: ca.SX):
+    q_se3 = SE3(pos = q_quat[:3], xyzw = q_quat[3:7])
     v_se3 = SE3Tangent(v[:6])
 
     # Integrate the floating base using the Lie operation:
     fb_r_se3 = q_se3 * v_se3.exp()
 
     # Integrate revolute joints manually:
-    r_r = q[7:] + v[6:]
-    return ca.vertcat(fb_r_se3.pos, quat2mrp(fb_r_se3.xyzw), r_r)
+    r_r = q_quat[7:] + v[6:]
+    return ca.vertcat(fb_r_se3.pos, fb_r_se3.xyzw, r_r)
 # =====================================================
 
 # Daft thing converting a CasADi SX to a numpy array.

@@ -6,6 +6,7 @@ import intervaltree as ivt
 from dataclasses import dataclass
 
 from utilities import ε
+from transcription import Constraint
 from poses import Pose, load_robot_pose
 
 @dataclass
@@ -23,11 +24,11 @@ class Task:
     # point returns how far away the trajectory is from the desired one at that time:
     traj_error: Callable[[float, ca.SX, ca.SX, ca.SX, ca.SX], float]     
 
-    # Trajectory boundaries:
-    q_initial:  Optional[np.array]
-    q_final:    Optional[np.array]
-    v_initial:  Optional[np.array]
-    v_final:    Optional[np.array]
+    # Given the kinematic decision variables (q_k, v_k, α_k), return a list
+    # of constraints that a solution to the task needs to satisfy: 
+    get_kinematic_constraints: Callable[
+        [list[ca.SX], list[ca.SX], list[ca.SX]], list[Constraint]
+    ]
 
 JUMP_TASK: Task = Task(
     name = "jump",
@@ -35,8 +36,8 @@ JUMP_TASK: Task = Task(
 
     contact_periods = [
         ivt.IntervalTree([
-            ivt.Interval(0.0, 0.3 + 1/40),
-            ivt.Interval(0.7, 2.0 + 1/40)
+            ivt.Interval(0.0, 0.3 + ε),
+            ivt.Interval(0.7, 2.0 + ε)
         ])
         for _ in range(4)
     ],
@@ -44,11 +45,18 @@ JUMP_TASK: Task = Task(
     # RMS of actuation torque:
     traj_error = lambda t, q, v, a, τ: ca.sqrt(τ.T @ τ),
 
-    # Feet must be in a standing V configuration at the beginning and end:
-    q_initial = load_robot_pose(Pose.STANDING_V)[0],
-    q_final   = None,
+    get_kinematic_constraints = lambda q_k, v_k, a_k, params: [
+        # Feet in standing V at the beginning:
+        Constraint(q_k[0] - load_robot_pose(Pose.STANDING_V)[0]),
 
-    # The robot should be stable at the beginning and end:
-    v_initial = np.zeros((18, 1)),
-    v_final   = np.zeros((18, 1)),
+        # Torso has moved forward by end of jump:
+        Constraint(q_k[-1][0], 0.4, ca.inf),
+
+        # Torso is above the ground at a certain height at the end:
+        Constraint(q_k[-1][2], lb = params["FLOOR_Z"] + 0.2, ub = ca.inf),
+
+        # The entire robot is static at the beginning and end:
+        Constraint(v_k[0]),
+        Constraint(v_k[-1])
+    ]
 )

@@ -157,24 +157,9 @@ if __name__ == "__main__":
 
     #endregion
 
-    #region Boundaries
-    print("Adding boundary constraints...")
-
-    if TASK.q_initial is not None:
-        constraints.append(Constraint(q_k[0] - TASK.q_initial))
-    
-    if TASK.v_initial is not None:
-        constraints.append(Constraint(v_k[0] - TASK.v_initial))
-    
-    if TASK.q_final is not None:
-        constraints.append(Constraint(q_k[-1] - TASK.q_final))
-
-    if TASK.v_final is not None:
-        constraints.append(Constraint(v_k[-1] - TASK.v_final))
-
-    ################ ADDITIONAL CONSTRAINTS #####################      
-    constraints.append(Constraint(q_k[-1][2], lb = FLOOR_Z + 0.2, ub = ca.inf))
-    constraints.append(Constraint(q_k[-1][0], lb = 0.2, ub = ca.inf))
+    #region Kinematic constraints
+    print("Adding trajectory kinematic constraints...")
+    constraints += TASK.get_kinematic_constraints(q_k, v_k, a_k, {"FLOOR_Z": FLOOR_Z})
     #############################################################
 
     #endregion

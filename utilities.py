@@ -4,10 +4,27 @@ import pinocchio as pin
 from itertools import chain
 from liecasadi import SE3, SE3Tangent
 
+def switch_mrp(mrp: ca.SX) -> ca.SX:
+    if not hasattr(switch_mrp, "ca_mrp_switch"):
+        mrp_sym = ca.SX.sym("mrp_sym", 3, 1)
+
+        # Make a static CasADi symbolic function that will return the switched MRP,
+        # given the switching criterion:
+        switch_mrp.ca_mrp_switch = ca.Function.if_else(
+            "ca_mrp_switch",
+            ca.Function("ca_mrp_switch_true",   [mrp_sym], [-mrp_sym / (mrp_sym.T @ mrp_sym)]),
+            ca.Function("ca_mrp_switch_false",  [mrp_sym], [mrp_sym])
+        )
+
+    # When a value is actually requested, return the calculation
+    # using the already computed symbolic expression:
+    norm = mrp.T @ mrp
+    return switch_mrp.ca_mrp_switch(norm > 1, mrp)
+
 # Quaternion in xyzw form to MRP:
 def quat2mrp(xyzw: ca.SX) -> ca.SX:
     norm = xyzw / ca.sqrt(xyzw.T @ xyzw)
-    return norm[:3] / (1 + norm[3]) 
+    return switch_mrp(norm[:3] / (1 + norm[3]))
 
 # MRP to quaternion in xyz form:
 def mrp2quat(xyz: ca.SX) -> ca.SX:

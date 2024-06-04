@@ -29,19 +29,19 @@ class Trajectory:
         o, sz = 0, robot.nq - 1
         traj.q_k = unflatten(vec[o : o + num_knots * sz], (sz, 1))
 
-        o, sz = o + sz, robot.nv
+        o, sz = o + sz * num_knots, robot.nv
         traj.v_k = unflatten(vec[o : o + num_knots * sz], (sz, 1))
 
-        o, sz = o + sz, robot.nv
+        o, sz = o + sz * num_knots, robot.nv
         traj.a_k = unflatten(vec[o : o + num_knots * sz], (sz, 1))
 
-        o, sz = o + sz, robot.nv
+        o, sz = o + sz * num_knots, 12
         traj.tau_k = unflatten(vec[o : o + num_knots * sz], (sz, 1))
 
-        o, sz = o + sz, 4 * 3
+        o, sz = o + sz * num_knots, 4 * 3
         traj.λ_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
 
-        o, sz = o + sz, 4 * 3
+        o, sz = o + sz * num_knots, 4 * 3
         traj.f_pos_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
 
         return traj

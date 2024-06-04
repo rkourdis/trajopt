@@ -185,12 +185,16 @@ if __name__ == "__main__":
     print("Instantiating solver...")
     
     knitro_settings = {
-        "hessopt":      knitro.KN_HESSOPT_LBFGS,
+        # "hessopt":      knitro.KN_HESSOPT_LBFGS,
         "algorithm":    knitro.KN_ALG_BAR_DIRECT,
         "bar_murule":   knitro.KN_BAR_MURULE_ADAPTIVE,
         "linsolver":    knitro.KN_LINSOLVER_MA57,
         "feastol":      1e-3,
         "ftol":         1e-4,
+        # "bar_feasible": knitro.KN_BAR_FEASIBLE_GET_STAY,
+        # "ms_enable":    True,
+        # "ms_numthreads": 8
+
     }
 
     solver = ca.nlpsol(

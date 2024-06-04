@@ -27,6 +27,7 @@ if __name__ == "__main__":
     # The order of forces per foot WILL be as in this list:
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
+    MU = 0.7
     FREQ_HZ = 20
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         bounds.add_expr(q_k[k][2], lb = FLOOR_Z, ub = ca.inf)
 
         # Joint torque limits in N*m:
-        bounds.add_expr(tau_k[k], lb = -6, ub = 6)
+        bounds.add_expr(tau_k[k], lb = -2, ub = 2)
 
         constraints.append(
             # Forward foothold kinematics:
@@ -118,8 +119,21 @@ if __name__ == "__main__":
             t_prev, t_next = (k - 1) * DELTA_T, (k + 1) * DELTA_T
 
             if (contact_ivt.overlaps(t) and k == N_KNOTS - 1) or contact_ivt.overlaps(t_next):
-                # Z contact force must be pointing up (repulsive):
-                bounds.add_expr(λ_k[k][foot_idx, 2], lb = 0.0, ub = ca.inf)
+                # Z contact force must be pointing up (repulsive).
+                # It must not exceed 30N for each foot.
+                bounds.add_expr(λ_k[k][foot_idx, 2], lb = 0.0, ub = 30.0)
+
+                # Friction cone constraints (pyramidal approximation):
+                constraints.append(
+                    # abs(fx) <= fz * μ
+                    Constraint(MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 0]), lb = 0.0, ub = ca.inf)
+                )
+
+                constraints.append(
+                    # abs(fy) <= fz * μ
+                    Constraint(MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 1]), lb = 0.0, ub = ca.inf)
+                )
+
             else:
                 # No contact forces available:
                 bounds.add_expr(λ_k[k][foot_idx, :], lb = 0, ub = 0)
@@ -185,7 +199,7 @@ if __name__ == "__main__":
     print("Instantiating solver...")
     
     knitro_settings = {
-        # "hessopt":      knitro.KN_HESSOPT_LBFGS,
+        "hessopt":      knitro.KN_HESSOPT_LBFGS,
         "algorithm":    knitro.KN_ALG_BAR_DIRECT,
         "bar_murule":   knitro.KN_BAR_MURULE_ADAPTIVE,
         "linsolver":    knitro.KN_LINSOLVER_MA57,

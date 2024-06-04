@@ -43,20 +43,17 @@ JUMP_TASK: Task = Task(
     ],
 
     # RMS of actuation torque:
-    traj_error = lambda t, q, v, a, τ: ca.sqrt(τ.T @ τ),
+    traj_error = lambda t, q, v, a, τ: v[6:].T @ v[6:],
 
     get_kinematic_constraints = lambda q_k, v_k, a_k, params: [
         # Feet in standing V at the beginning:
         Constraint(q_k[0] - load_robot_pose(Pose.STANDING_V)[0]),
+        Constraint(q_k[-1][3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
 
-        # Torso has moved forward by end of jump:
-        Constraint(q_k[-1][0], 0.4, ca.inf),
+        # # Torso has moved forward by end of jump:
+        # Constraint(q_k[-1][0], 0.4, ca.inf),
 
-        # Torso is above the ground at a certain height at the end:
-        Constraint(q_k[-1][2], lb = params["FLOOR_Z"] + 0.2, ub = ca.inf),
-
-        # The entire robot is static at the beginning and end:
-        Constraint(v_k[0]),
-        Constraint(v_k[-1])
+        # # Torso is above the ground at a certain height at the end:
+        # Constraint(q_k[-1][2], lb = params["FLOOR_Z"] + 0.2, ub = ca.inf),
     ]
 )

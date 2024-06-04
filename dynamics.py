@@ -28,7 +28,9 @@ class ADForwardDynamics():
         # λ contains GRFs for each foot in the local world-aligned frame.
         # Find how they're expressed in the parent joint frames at the given
         # robot state. FK will populate robot.data.oMf.
-        cpin.framesForwardKinematics(self.cmodel, self.cdata, q_quat)
+        q_norm = cpin.normalize(self.cmodel, q_quat)
+
+        cpin.framesForwardKinematics(self.cmodel, self.cdata, q_norm)
         fext_full = [cpin.Force.Zero() for _ in range(len(self.cmodel.joints))]
 
         for foot_idx, (foot_frame_id, parent_joint_id) in enumerate(
@@ -59,4 +61,4 @@ class ADForwardDynamics():
         for act_dof, j_id in enumerate(self.act_joint_ids):
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
-        return cpin.aba(self.cmodel, self.cdata, q_quat, v, tau_full, fext_full)
+        return cpin.aba(self.cmodel, self.cdata, q_norm, v, tau_full, fext_full)

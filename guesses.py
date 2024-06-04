@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import casadi as ca
 import pinocchio as pin
@@ -29,3 +30,10 @@ def const_pose_guess(n_knots: int, fk: ADFootholdKinematics, pose: Pose = None) 
         λ_k         = [np.copy(λ0) for _ in range(n_knots)],
         f_pos_k     = [np.copy(f_pos_0) for _ in range(n_knots)]
     )
+
+def prev_soln_guess(n_knots: int, robot: pin.RobotWrapper, filename: str):
+    with open(filename, "rb") as rf:
+        soln = pickle.load(rf)
+    
+    return Trajectory.load_from_vec(n_knots, robot, soln["x"])
+

@@ -9,7 +9,9 @@ class ADFootholdKinematics():
         self.ff_ids = [cmodel.getFrameId(f) for f in feet]
 
     def __call__(self, q_quat: ca.SX):
-        cpin.forwardKinematics(self.cmodel, self.cdata, q_quat)
+        q_norm = cpin.normalize(self.cmodel, q_quat)
+
+        cpin.forwardKinematics(self.cmodel, self.cdata, q_norm)
         cpin.updateFramePlacements(self.cmodel, self.cdata)
 
         positions = [self.cdata.oMf[ff_id].translation for ff_id in self.ff_ids]

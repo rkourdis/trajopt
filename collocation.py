@@ -7,7 +7,7 @@ from pinocchio import casadi as cpin
 
 from poses import Pose
 from robot import load_solo12
-from guesses import const_pose_guess
+from guesses import const_pose_guess, prev_soln_guess
 from visualisation import visualise_solution
 from utilities import integrate_state, flatten
 
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         )
 
         # Robot torso cannot go below the ground:
-        bounds.add_expr(q_k[k][2], lb = FLOOR_Z, ub = ca.inf)
+        bounds.add_expr(q_k[k][2], lb = FLOOR_Z + 0.1, ub = ca.inf)
 
         # Joint torque limits in N*m:
         bounds.add_expr(tau_k[k], lb = -6, ub = 6)
@@ -165,6 +165,26 @@ if __name__ == "__main__":
     #region Kinematic constraints
     print("Adding trajectory kinematic constraints...")
     constraints += TASK.get_kinematic_constraints(q_k, v_k, a_k, {"FLOOR_Z": FLOOR_Z})
+
+    # The entire robot is static at the beginning and end:
+    bounds.add_expr(v_k[0], lb = 0.0, ub = 0.0)
+    bounds.add_expr(v_k[-1], lb = 0.0, ub = 0.0)
+
+    # # We have flipped:
+    bounds.add_expr(q_k[-1][3], lb = 0.0, ub = 0.0)
+    bounds.add_expr(q_k[-1][4], lb = 0.0, ub = 0.0)
+    bounds.add_expr(q_k[-1][5], lb = 0.0, ub = 0.0)
+    bounds.add_expr(q_k[-1][6], lb = -1.0, ub = 1.0)
+    
+    # In the middle of the jump, be upside down and flipping:
+    k_mid = int(0.5 * FREQ_HZ)
+    bounds.add_expr(q_k[k_mid][3], lb = 0.0, ub = 0.0)
+    bounds.add_expr(q_k[k_mid][4], lb = -1.0, ub = -1.0)
+    bounds.add_expr(q_k[k_mid][5], lb = 0.0, ub = 0.0)
+    bounds.add_expr(q_k[k_mid][6], lb = 0.0, ub = 0.0)
+
+    bounds.add_expr(v_k[k_mid][4], lb = -ca.inf, ub = 0.0)    
+
     #############################################################
 
     #endregion
@@ -218,7 +238,7 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
+        x0  = prev_soln_guess(N_KNOTS, robot, OUTPUT_FILENAME).flatten(),
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),
         lbx = [b[0] for b in x_bounds],

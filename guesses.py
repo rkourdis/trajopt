@@ -1,8 +1,10 @@
+import pickle
+from typing import Optional
+
 import numpy as np
 import casadi as ca
 import pinocchio as pin
 
-from utilities import flatten
 from kinematics import ADFootholdKinematics
 from transcription import Trajectory
 from poses import load_robot_pose, Pose
@@ -29,3 +31,24 @@ def const_pose_guess(n_knots: int, fk: ADFootholdKinematics, pose: Pose = None) 
         λ_k         = [np.copy(λ0) for _ in range(n_knots)],
         f_pos_k     = [np.copy(f_pos_0) for _ in range(n_knots)]
     )
+
+# Loads a previous solution as an initial guess trajectory.
+# If `interp_knots` is set, the trajectory will be interpolated to
+# the target knot count.
+def prev_soln_guess(
+        n_knots: int,
+        robot: pin.RobotWrapper,
+        filename: str,
+        interp_knots: Optional[int] = None
+) -> Trajectory:
+    
+    with open(filename, "rb") as rf:
+        soln = pickle.load(rf)
+    
+    traj = Trajectory.load_from_vec(n_knots, robot, soln["x"])
+
+    if interp_knots is not None:
+        return traj.interpolate(interp_knots)
+    
+    return traj
+    

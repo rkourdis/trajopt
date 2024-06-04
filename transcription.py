@@ -1,3 +1,4 @@
+from itertools import chain
 from dataclasses import dataclass
 
 import numpy as np
@@ -22,6 +23,30 @@ class Trajectory:
             flatten(self.tau_k), flatten(self.λ_k), flatten(self.f_pos_k)
         )
     
+    # Interpolate by simple repetition of knots:
+    def interpolate(self, target_knots: int):
+        assert target_knots % self.num_knots == 0, \
+            "Target knot count must be divisible by source"
+        
+        reps = target_knots // self.num_knots
+        result = Trajectory(num_knots = target_knots)
+
+        # np.repeat(reps) ...
+        repeat = lambda vars: list(
+            chain.from_iterable(
+                [np.copy(var) for _ in range(reps)] for var in vars
+            )
+        )
+
+        result.q_k = repeat(self.q_k)
+        result.v_k = repeat(self.v_k)
+        result.a_k = repeat(self.a_k)
+        result.tau_k = repeat(self.tau_k)
+        result.λ_k = repeat(self.λ_k)
+        result.f_pos_k = repeat(self.f_pos_k)
+
+        return result
+
     @staticmethod
     def load_from_vec(num_knots: int, robot: pin.RobotWrapper, vec: ca.DM):
         traj = Trajectory(num_knots = num_knots)

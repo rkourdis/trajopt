@@ -7,7 +7,7 @@ from pinocchio import casadi as cpin
 
 from poses import Pose
 from robot import load_solo12
-from guesses import const_pose_guess
+from guesses import *
 from visualisation import visualise_solution
 from utilities import integrate_state, flatten
 
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
     MU = 0.7
-    FREQ_HZ = 20
+    FREQ_HZ = 80
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -229,7 +229,11 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
+        # x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
+        x0  = prev_soln_guess(
+            20, robot, "trajectories/backflip_land_20hz_1000ms.bin", interp_knots = N_KNOTS
+        ).flatten(),
+
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),
         lbx = [b[0] for b in x_bounds],

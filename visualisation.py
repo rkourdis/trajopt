@@ -15,4 +15,5 @@ def visualise_solution(filename: str, n_knots: int, delta_t: float, robot: pin.R
 
     for q_mrp in traj.q_k:
         robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
-        time.sleep(delta_t)
+        time.sleep(delta_t * 2)
+        # input()

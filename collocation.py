@@ -28,7 +28,7 @@ if __name__ == "__main__":
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
     MU = 0.7
-    FREQ_HZ = 80
+    FREQ_HZ = 160
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         )
 
         # Robot torso cannot go below the ground:
-        bounds.add_expr(q_k[k][2], lb = FLOOR_Z, ub = ca.inf)
+        bounds.add_expr(q_k[k][2], lb = FLOOR_Z + 0.08, ub = ca.inf)
 
         # Joint torque limits in N*m:
         bounds.add_expr(tau_k[k], lb = -2, ub = 2)
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     #region Kinematic constraints
     print("Adding trajectory kinematic constraints...")
     constraints += TASK.get_kinematic_constraints(
-        q_k, v_k, a_k, f_pos_k, {"FLOOR_Z": FLOOR_Z, "FREQ_HZ": FREQ_HZ}
+        q_k, v_k, a_k, f_pos_k, {"FLOOR_Z": FLOOR_Z, "FREQ_HZ": FREQ_HZ, "N_KNOTS": N_KNOTS}
     )
     #############################################################
 
@@ -230,9 +230,11 @@ if __name__ == "__main__":
 
     soln = solver(
         # x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
-        x0  = prev_soln_guess(
-            20, robot, "trajectories/backflip_land_20hz_1000ms.bin", interp_knots = N_KNOTS
-        ).flatten(),
+        x0  = prev_soln_guess(160, robot, "trajectories/backflip_land_160hz_1000ms.bin").flatten(),
+
+        # x0  = prev_soln_guess(
+        #     80, robot, "trajectories/backflip_land_80hz_1000ms.bin", interp_knots = N_KNOTS
+        # ).flatten(),
 
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),

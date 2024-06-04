@@ -15,10 +15,10 @@ from transcription import Constraint, VariableBounds
 from dynamics import ADForwardDynamics
 from kinematics import ADFootholdKinematics
 
-from tasks import JUMP_TASK
+from tasks import *
 
 if __name__ == "__main__":
-    TASK = JUMP_TASK
+    TASK = BACKFLIP_LAND_TASK
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--visualise', action='store_true')
@@ -90,7 +90,7 @@ if __name__ == "__main__":
             # Forward foothold kinematics:
             Constraint(f_pos_k[k] - fk(q_k[k]))
         )
-
+        
         # Integration constraints:
         # ========================
         if k > 0:
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # Integrate trajectory error to minimize, normalised by the trajectory duration:
     objective = sum(
         DELTA_T / TASK.duration * 
-            TASK.traj_error(k * DELTA_T, q_k[k], v_k[k], a_k[k], tau_k[k])
+            TASK.traj_error(k * DELTA_T, q_k[k], v_k[k], a_k[k], tau_k[k], λ_k[k])
 
         for k in range(N_KNOTS)
     )
@@ -173,7 +173,9 @@ if __name__ == "__main__":
 
     #region Kinematic constraints
     print("Adding trajectory kinematic constraints...")
-    constraints += TASK.get_kinematic_constraints(q_k, v_k, a_k, {"FLOOR_Z": FLOOR_Z})
+    constraints += TASK.get_kinematic_constraints(
+        q_k, v_k, a_k, f_pos_k, {"FLOOR_Z": FLOOR_Z, "FREQ_HZ": FREQ_HZ}
+    )
     #############################################################
 
     #endregion

@@ -31,8 +31,8 @@ def switch_mrp(mrp: ca.SX) -> ca.SX:
 def quat2mrp(xyzw: ca.SX) -> ca.SX:
     norm = xyzw / ca.sqrt(xyzw.T @ xyzw)
     
-    # return switch_mrp(norm[:3] / (1 + norm[3]))
-    return norm[:3] / (1 + norm[3])
+    # return norm[:3] / (1 + norm[3])
+    return switch_mrp(norm[:3] / (1 + norm[3]))
 
 # MRP to quaternion in xyz form:
 def mrp2quat(xyz: ca.SX) -> ca.SX:

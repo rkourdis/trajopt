@@ -135,3 +135,29 @@ BACKFLIP_LAND_TASK: Task = Task(
         ]
     ))
 )
+
+BACKFLIP_LAUNCH_TASK: Task = Task(
+    # TODO: This is a work in progress
+    
+    name = "backflip_launch",
+    duration = 1.0,
+
+    contact_periods = [
+        ivt.IntervalTree([
+            ivt.Interval(0.0, 0.5 + ε),
+            ivt.Interval(0.7, 1.0 + ε)
+        ])
+        for _ in range(4)
+    ],
+
+    # RMS of actuation torque:
+    traj_error = lambda t, q, v, a, τ, λ: ca.sqrt(τ.T @ τ),
+
+    get_kinematic_constraints = lambda q_k, v_k, a_k, f_pos_k, params: [
+        Constraint(q_k[0] - load_robot_pose(Pose.STANDING_V)[0]),
+        Constraint(q_k[-1] - load_robot_pose(Pose.STANDING_V)[0]),
+
+        Constraint(v_k[0]),
+        Constraint(v_k[-1])
+    ]
+)

@@ -18,7 +18,7 @@ from kinematics import ADFootholdKinematics
 from tasks import *
 
 if __name__ == "__main__":
-    TASK = BACKFLIP_LAND_TASK
+    TASK = BACKFLIP_LAUNCH_TASK
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--visualise', action='store_true')
@@ -28,7 +28,8 @@ if __name__ == "__main__":
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
     MU = 0.7
-    FREQ_HZ = 160
+    BAUMGARTE_ALPHA = 2
+    FREQ_HZ = 30
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -52,7 +53,7 @@ if __name__ == "__main__":
 
     #region Collocation variables
     print("Creating collocation decision variables...")
-    q_k, v_k, a_k, tau_k, λ_k, f_pos_k = [], [], [], [], [], []
+    q_k, v_k, a_k, tau_k, λ_k, f_pos_k, f_vel_k, f_acc_k = [], [], [], [], [], [], [], []
 
     for k in range(N_KNOTS):
         q_k.append(ca.SX.sym(f"q_{k}", robot.nq - 1))   # We will represent orientations with MRP instead of quaternions
@@ -61,7 +62,10 @@ if __name__ == "__main__":
 
         tau_k.append(ca.SX.sym(f"τ_{k}", len(actuated_joints)))  # 12 x 1 
         λ_k.append(ca.SX.sym(f"λ_{k}", len(FEET), 3))            # 4  x 3
-        f_pos_k.append(ca.SX.sym(f"f_pos_{k}", len(FEET), 3))    # 4  x 3
+
+        f_pos_k.append(ca.SX.sym(f"f_pos_{k}", len(FEET), 3))    # 4 x 3
+        f_vel_k.append(ca.SX.sym(f"f_vel_{k}", len(FEET), 3))    # 4 x 3
+        f_acc_k.append(ca.SX.sym(f"f_acc_{k}", len(FEET), 3))    # 4 x 3
         
     #endregion
 
@@ -72,6 +76,7 @@ if __name__ == "__main__":
 
     for k in range(N_KNOTS):
         t = k * DELTA_T
+        f_pos, f_vel, f_acc = fk(q_k[k], v_k[k], a_k[k])
 
         # Pointwise constraints (dynamics, kinematics, limits):
         # =========================================
@@ -83,13 +88,13 @@ if __name__ == "__main__":
         # Robot torso cannot go below the ground:
         bounds.add_expr(q_k[k][2], lb = FLOOR_Z + 0.08, ub = ca.inf)
 
-        # Joint torque limits in N*m:
-        bounds.add_expr(tau_k[k], lb = -2, ub = 2)
+        # # Joint torque limits in N*m:
+        # bounds.add_expr(tau_k[k], lb = -2, ub = 2)
 
-        constraints.append(
-            # Forward foothold kinematics:
-            Constraint(f_pos_k[k] - fk(q_k[k]))
-        )
+        # Forward foothold kinematics:
+        constraints.append(Constraint(f_pos_k[k] - f_pos))
+        constraints.append(Constraint(f_vel_k[k] - f_vel))
+        constraints.append(Constraint(f_acc_k[k] - f_acc))
         
         # Integration constraints:
         # ========================
@@ -111,51 +116,88 @@ if __name__ == "__main__":
 
             # Contact Forces
             # --------------
-            # If the foot is on the ground on the next knot, contact forces should be now available.
-            # This is so that the velocity of the next knot is such that the foot can be kept
-            # in contact.
-            # The forces create an impulse during knot k and k+1 to cancel out foot velocity.
-            # If this is the last knot and we're in contact, we'll assume contact continues.
-            t_prev, t_next = (k - 1) * DELTA_T, (k + 1) * DELTA_T
+            # If the foot is on the ground, contact forces should be available.
+            # They must be such that the foot position constraints are satisfied:
+            #   1. fx, fy = const
+            #   2. fz = FLOOR_Z = const
+            # The forces need to be computed _for that contact knot_, as they needs to balance
+            # other second order phenomena such as gravity and torque in the dynamics equations!
+            # If we measure the violation by seeing how fx, fy, fz change between the current
+            # and the next knot, the GRFs might be inaccurate as accelerations take two knots
+            # to cause an effect. For example, before the last contact knot ANY force can be
+            # applied as the acceleration will not change the foot placement at all.
+            # At that point, the torques required to keep the body up are not accurate.
 
-            if (contact_ivt.overlaps(t) and k == N_KNOTS - 1) or contact_ivt.overlaps(t_next):
+            if contact_ivt.overlaps(t):
                 # Z contact force must be pointing up (repulsive).
-                # It must not exceed 30N for each foot.
-                bounds.add_expr(λ_k[k][foot_idx, 2], lb = 0.0, ub = 30.0)
+                # TODO: Add limit, normalise by Δt?
+                bounds.add_expr(λ_k[k][foot_idx, 2], lb = 0.0, ub = ca.inf)
 
                 # Friction cone constraints (pyramidal approximation):
                 constraints.append(
-                    # abs(fx) <= fz * μ
-                    Constraint(MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 0]), lb = 0.0, ub = ca.inf)
+                    Constraint(
+                        # abs(fx) <= fz * μ:
+                        MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 0]),
+                        lb = 0.0, ub = ca.inf
+                    )
                 )
 
                 constraints.append(
-                    # abs(fy) <= fz * μ
-                    Constraint(MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 1]), lb = 0.0, ub = ca.inf)
+                    Constraint(
+                        # abs(fy) <= fz * μ
+                        MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 1]),
+                        lb = 0.0, ub = ca.inf
+                    )
                 )
+
+                # Foothold constraint: the feet are on the ground and aren't slipping:
+                #   [f_x, f_y, f_z] - [fc_x, fc_y, fc_z = FLOOR_Z] = 0  \forall t,
+                # where `fc` is the foot contact point.
+                # There are two strategies for handling this constraint:
+                #
+                #   1. We can set its acceleration to zero and find forces that achieve that.
+                #      To make sure the position constraint holds numerically, we can
+                #      dampen the system using Baugmarte stabilization:
+                #           f_acc_k[k] = -2*α*f_vel_k[k] - α^2 *(f_pos_k[k] - [...])
+                #
+                #      This sadly didn't work too well as the damping wasn't
+                #      enough to prevent the feet from falling into the ground.
+                #      It maybe is tricky with a coarsely discretized problem?
+                #      Does the constraint f_grf_z >= 0 make it extra difficult?
+                #
+                #   2. We can enforce the constraint directly on the foot kinematics
+                #      variables: f_pos_k[k] = const = f_pos_k[c_k] and
+                #      f_pos_k[c_k][2] = FLOOR_Z.
+                #      To make sure that torques are always accurate and no funky
+                #      business is happening with the integrator (as described
+                #      above), we can also set the derivatives of the constraint to zero,
+                #      using second-order kinematics.
+                #      NOTE: This seems to work only with exact Hessians.
+
+                # Find the knot where contact starts:
+                c_k = math.ceil(next(iter(contact_ivt.at(t)))[0] * FREQ_HZ - ε)
+
+                target_pos = ca.horzcat(
+                    f_pos_k[c_k][foot_idx, 0],
+                    f_pos_k[c_k][foot_idx, 1],
+                    FLOOR_Z
+                )
+
+                # Sadly, these constraints still make the optimization difficult...
+                # I'm not sure what's the problem, maybe it's struggling to lift the legs
+                # at the last knot? Even removing the >= FLOOR_Z constraint below doesn't
+                # work...
+                constraints.append(Constraint(f_pos_k[k][foot_idx, :] - target_pos))
+                constraints.append(Constraint(f_vel_k[k][foot_idx, :]))
+                constraints.append(Constraint(f_acc_k[k][foot_idx, :]))
 
             else:
                 # No contact forces available:
                 bounds.add_expr(λ_k[k][foot_idx, :], lb = 0, ub = 0)
 
-            # Foot Positioning
-            # ----------------
-            if contact_ivt.overlaps(t):
-                # If in contact, the foot Z must be on the ground, and the foot mustn't slip:
-                bounds.add_expr(f_pos_k[k][foot_idx, 2], lb = FLOOR_Z, ub = FLOOR_Z)
-
-                # We enforce the non-slip constraint by setting the foot position
-                # to be equal to the previous one, if there was contact.
-                # Otherwise, the footholds are free to be chosen by the optimizer.
-                if k > 0 and contact_ivt.overlaps(t_prev):
-                    constraints.append(
-                        Constraint(f_pos_k[k][foot_idx, :] - f_pos_k[k-1][foot_idx, :])
-                    )
-
-            else:
                 # If not in contact, foot X and Y are free, and Z >= floor:
                 bounds.add_expr(f_pos_k[k][foot_idx, 2], lb = FLOOR_Z, ub = ca.inf)
-    
+
     #endregion
 
     #region Objective
@@ -184,7 +226,8 @@ if __name__ == "__main__":
     print("Creating NLP description...")
 
     decision_vars = ca.vertcat(
-        *q_k, *v_k, *a_k, *tau_k, flatten(λ_k), flatten(f_pos_k)
+        *q_k, *v_k, *a_k, *tau_k, flatten(λ_k),
+        flatten(f_pos_k), flatten(f_vel_k), flatten(f_acc_k)
     )
     
     problem = {
@@ -201,7 +244,7 @@ if __name__ == "__main__":
     print("Instantiating solver...")
     
     knitro_settings = {
-        "hessopt":      knitro.KN_HESSOPT_LBFGS,
+        # "hessopt":      knitro.KN_HESSOPT_LBFGS,
         "algorithm":    knitro.KN_ALG_BAR_DIRECT,
         "bar_murule":   knitro.KN_BAR_MURULE_ADAPTIVE,
         "linsolver":    knitro.KN_LINSOLVER_MA57,
@@ -229,8 +272,8 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        # x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
-        x0  = prev_soln_guess(160, robot, "trajectories/backflip_land_160hz_1000ms.bin").flatten(),
+        x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
+        # x0  = prev_soln_guess(N_KNOTS, robot, "trajectories/backflip_launch_20hz_1000ms.bin").flatten(),
 
         # x0  = prev_soln_guess(
         #     80, robot, "trajectories/backflip_land_80hz_1000ms.bin", interp_knots = N_KNOTS

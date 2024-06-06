@@ -16,11 +16,14 @@ class Trajectory:
     tau_k: list[np.array]   = None    # 12x1
     λ_k: list[np.array]     = None    # 4x3
     f_pos_k: list[np.array] = None    # 4x3
+    f_vel_k: list[np.array] = None    # 4x3
+    f_acc_k: list[np.array] = None    # 4x3
 
     def flatten(self) -> ca.DM:
         return ca.vertcat(
             flatten(self.q_k), flatten(self.v_k), flatten(self.a_k),
-            flatten(self.tau_k), flatten(self.λ_k), flatten(self.f_pos_k)
+            flatten(self.tau_k), flatten(self.λ_k),
+            flatten(self.f_pos_k), flatten(self.f_vel_k), flatten(self.f_acc_k)
         )
     
     # Interpolate by simple repetition of knots:
@@ -44,6 +47,8 @@ class Trajectory:
         result.tau_k = repeat(self.tau_k)
         result.λ_k = repeat(self.λ_k)
         result.f_pos_k = repeat(self.f_pos_k)
+        result.f_vel_k = repeat(self.f_vel_k)
+        result.f_acc_k = repeat(self.f_acc_k)
 
         return result
 
@@ -68,6 +73,12 @@ class Trajectory:
 
         o, sz = o + sz * num_knots, 4 * 3
         traj.f_pos_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
+
+        o, sz = o + sz * num_knots, 4 * 3
+        traj.f_vel_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
+
+        o, sz = o + sz * num_knots, 4 * 3
+        traj.f_acc_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
 
         return traj
     

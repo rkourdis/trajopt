@@ -27,12 +27,16 @@ def switch_mrp(mrp: ca.SX) -> ca.SX:
     norm = mrp.T @ mrp
     return switch_mrp.ca_mrp_switch(norm > 1, mrp)
 
+# Helper function to switch the MRP part of a full state vector:
+def switch_mrp_in_q(q_mrp: ca.SX) -> ca.SX:
+    return ca.vertcat(q_mrp[:3], switch_mrp(q_mrp[3:6]), q_mrp[6:])
+
 # Quaternion in xyzw form to MRP:
 def quat2mrp(xyzw: ca.SX) -> ca.SX:
     norm = xyzw / ca.sqrt(xyzw.T @ xyzw)
     
-    # return norm[:3] / (1 + norm[3])
-    return switch_mrp(norm[:3] / (1 + norm[3]))
+    # return switch_mrp(norm[:3] / (1 + norm[3]))
+    return norm[:3] / (1 + norm[3])
 
 # MRP to quaternion in xyz form:
 def mrp2quat(xyz: ca.SX) -> ca.SX:

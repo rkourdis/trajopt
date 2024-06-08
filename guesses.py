@@ -13,7 +13,7 @@ from poses import load_robot_pose, Pose
 # If pose == None, everything in the guess is zero / neutral.
 def const_pose_guess(n_knots: int, pose: Pose, fk: ADFootholdKinematics) -> Trajectory:
     q0, v0, tau0, _ = load_robot_pose(Pose.STANDING_V)
-    a0 = np.zeros(v0.shape)                      
+    a0, λ0 = np.zeros(v0.shape), np.zeros((4, 3))                      
 
     # Create numerical instance of FK to calculate feet kinematics:
     q_sym = ca.SX.sym("q_sym", q0.shape)
@@ -26,6 +26,7 @@ def const_pose_guess(n_knots: int, pose: Pose, fk: ADFootholdKinematics) -> Traj
         a_k         = [np.copy(a0) for _ in range(n_knots)],
         tau_k       = [np.copy(tau0) for _ in range(n_knots)],
         f_pos_k     = [np.copy(f_pos_0) for _ in range(n_knots)],
+        lambda_k    = [np.copy(λ0) for _ in range(n_knots)],
     )
 
 # Loads a previous solution as an initial guess trajectory.

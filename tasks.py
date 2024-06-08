@@ -148,7 +148,7 @@ BACKFLIP_LAUNCH_TASK: Task = Task(
     contact_periods = [
         ivt.IntervalTree([
             ivt.Interval(0.0, 0.4),
-            ivt.Interval(0.7, 1.0 + ε)
+            ivt.Interval(0.6, 1.0 + ε)
         ])
         for _ in range(4)
     ],

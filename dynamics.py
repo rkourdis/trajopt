@@ -8,6 +8,7 @@ from utilities import q_mrp_to_quat
 # calculates all joint accelerations. If `contact` == False, the robot
 # is unconstrained. Otherwise, the constrained dynamics are computed,
 # assuming the feet are pinned in place (3D contact point).
+# The contact forces are also returned.
 class ADForwardDynamics():
     def __init__(self, cmodel, cdata, feet: list[str], act_joint_ids: list[int]):
         self.cmodel, self.cdata = cmodel, cdata
@@ -54,14 +55,17 @@ class ADForwardDynamics():
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
         # If we're in contact, calculate the constrained (feet pinned) dynamics.
-        # The constraint forces can be found in cdata.lambda_c.
         if contact == True:
             # prox_settings = cpin.ProximalSettings(1e-12, 1e-12, 1)
-            return cpin.constraintDynamics(
+            accel = cpin.constraintDynamics(
                 self.cmodel, self.cdata,
                 q, v, tau_full,
                 self.contact_models, self.contact_data #, prox_settings
             )
-        
+
+            # TODO: Make sure to return only the correct feet:
+            forces = ca.reshape(self.cdata.lambda_c, 4, 3)
+            return accel, forces
+
         # Otherwise, return the free dynamics using the Articulated Body Algorithm:
-        return cpin.aba(self.cmodel, self.cdata, q, v, tau_full)
+        return cpin.aba(self.cmodel, self.cdata, q, v, tau_full), ca.SX.zeros(4, 3)

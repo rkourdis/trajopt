@@ -27,8 +27,8 @@ if __name__ == "__main__":
     # The order of forces per foot WILL be as in this list:
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
-    MU = 0.7
-    FREQ_HZ = 120
+    MU = 1.0
+    FREQ_HZ = 40
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     constraints = []
     bounds = VariableBounds()
-    q_k, v_k, a_k, tau_k, f_pos_k = [], [], [], [], []
+    q_k, v_k, a_k, tau_k, f_pos_k, lambda_k = [], [], [], [], [], []
 
     for k in range(N_KNOTS):
         t = k * DELTA_T
@@ -67,28 +67,20 @@ if __name__ == "__main__":
         a_k.append(ca.SX.sym(f"a_{k}", robot.nv))                # 18 x 1
         tau_k.append(ca.SX.sym(f"τ_{k}", len(actuated_joints)))  # 12 x 1 
         f_pos_k.append(ca.SX.sym(f"f_pos_{k}", len(FEET), 3))    # 4 x 3 
+        lambda_k.append(ca.SX.sym(f"lambda_{k}", len(FEET), 3))   # 4 x 3 
 
         # Pointwise constraints (dynamics, kinematics, limits):
         # =========================================
-        constraints.append(
-            # Forward dynamics accelerations, constrained if feet in contact:
-            Constraint(a_k[k] - fd(q_k[k], v_k[k], tau_k[k], in_contact))
-        )
+        accel, forces = fd(q_k[k], v_k[k], tau_k[k], in_contact)
+
+        # Forward dynamics accelerations, constrained if feet in contact:
+        constraints.append(Constraint(a_k[k] - accel))
 
         # Robot torso cannot go below the ground:
         bounds.add_expr(q_k[k][2], lb = FLOOR_Z + 0.08, ub = ca.inf)
 
         # Joint torque limits in N*m:
         bounds.add_expr(tau_k[k], lb = -2, ub = 2)
-
-        constraints.append(
-            # Foot forward kinematics:
-            Constraint(f_pos_k[k] - fk(q_k[k]))
-        )
-
-        # Feet cannot go below the ground:
-        for f_idx in range(len(FEET)):
-            bounds.add_expr(f_pos_k[k][f_idx, 2], lb = FLOOR_Z, ub = ca.inf)
 
         # Integration constraints:
         # ========================
@@ -103,35 +95,34 @@ if __name__ == "__main__":
                 Constraint(q_k[k] - integrate_state(q_k[k-1], DELTA_T * v_k[k-1]))
             )
 
-        # # Feet contact force and kinematic constraints:
-        # # =============================================
-        # for foot_idx in range(len(FEET)):
-        #     if in_contact:
-        #         # TODO: Get forces from cdata.lambda_c.
+        # Feet constraints:
+        # =============================================
 
-        #         # Z contact force must be pointing up (repulsive).
-        #         # TODO: Add limit, normalise by Δt?
-        #         bounds.add_expr(λ_k[k][foot_idx, 2], lb = 0.0, ub = ca.inf)
+        # Contact forces:
+        constraints.append(Constraint(lambda_k[k] - forces))
 
-        #         # Friction cone constraints (pyramidal approximation):
-        #         constraints.append(
-        #             Constraint(
-        #                 # abs(fx) <= fz * μ:
-        #                 MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 0]),
-        #                 lb = 0.0, ub = ca.inf
-        #             )
-        #         )
+        # Forward kinematics:
+        constraints.append(Constraint(f_pos_k[k] - fk(q_k[k])))
 
-        #         constraints.append(
-        #             Constraint(
-        #                 # abs(fy) <= fz * μ
-        #                 MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 1]),
-        #                 lb = 0.0, ub = ca.inf
-        #             )
-        #         )
-        #     else:
-        #         # If not in contact, foot X and Y are free, and Z >= floor:
-        #         bounds.add_expr(f_pos_k[k][foot_idx, 2], lb = FLOOR_Z, ub = ca.inf)
+        # Feet cannot go below the ground:
+        for f_idx in range(len(FEET)):
+            bounds.add_expr(f_pos_k[k][f_idx, 2], lb = FLOOR_Z, ub = ca.inf)
+
+        if in_contact:
+            # Z contact force must be pointing up (repulsive).
+            # TODO: Add limit, normalise by Δt?
+            bounds.add_expr(lambda_k[k][:, 2], lb = 0.0, ub = ca.inf)
+
+            # Friction cone constraints (pyramidal approximation):
+            # abs(fx) <= fz * μ:
+            constraints.append(
+                Constraint(MU * lambda_k[k][:, 2] - ca.fabs(lambda_k[k][:, 0]), lb = 0.0, ub = ca.inf)
+            )
+
+            # abs(fy) <= fz * μ
+            constraints.append(
+                Constraint(MU * lambda_k[k][:, 2] - ca.fabs(lambda_k[k][:, 1]), lb = 0.0, ub = ca.inf)
+            )
 
     for idx, foot in enumerate(FEET):
         for interval in list(TASK.contact_periods[idx]):
@@ -175,7 +166,9 @@ if __name__ == "__main__":
     #region Problem and solver setup
     print("Creating NLP description...")
 
-    decision_vars = ca.vertcat(*q_k, *v_k, *a_k, *tau_k, flatten(f_pos_k))
+    decision_vars = ca.vertcat(
+        *q_k, *v_k, *a_k, *tau_k, flatten(f_pos_k), flatten(lambda_k)
+    )
     
     problem = {
         # Decision variables:
@@ -219,11 +212,11 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        # x0  = const_pose_guess(N_KNOTS, Pose.STANDING_V, fk).flatten(),
-        x0  = prev_soln_guess(
-           int(40 * TASK.duration), robot, "backflip_launch_40hz_1000ms.bin",
-           interp_knots = N_KNOTS
-        ).flatten(),
+        x0  = const_pose_guess(N_KNOTS, Pose.STANDING_V, fk).flatten(),
+        # x0  = prev_soln_guess(
+        #    int(40 * TASK.duration), robot, "backflip_launch_40hz_1000ms.bin",
+        #    interp_knots = N_KNOTS
+        # ).flatten(),
 
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),

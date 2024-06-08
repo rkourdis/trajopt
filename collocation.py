@@ -57,11 +57,6 @@ if __name__ == "__main__":
     for k in range(N_KNOTS):
         t = k * DELTA_T
         
-        # TODO: We'll for now assume all feet are in contact!
-        #       Change the dynamics to constrain individual feet.
-        contact_ivt = TASK.contact_periods[0]
-        in_contact = contact_ivt.overlaps(t)
-
         q_k.append(ca.SX.sym(f"q_{k}", robot.nq - 1))            # Orientations use MRP
         v_k.append(ca.SX.sym(f"v_{k}", robot.nv))                # 18 x 1
         a_k.append(ca.SX.sym(f"a_{k}", robot.nv))                # 18 x 1
@@ -71,7 +66,10 @@ if __name__ == "__main__":
 
         # Pointwise constraints (dynamics, kinematics, limits):
         # =========================================
-        accel, forces = fd(q_k[k], v_k[k], tau_k[k], in_contact)
+        accel, forces = fd(
+            q_k[k], v_k[k], tau_k[k],
+            [TASK.contact_periods[f_id].overlaps(t) for f_id in range(len(FEET))]
+        )
 
         # Forward dynamics accelerations, constrained if feet in contact:
         constraints.append(Constraint(a_k[k] - accel))
@@ -104,25 +102,24 @@ if __name__ == "__main__":
         # Forward kinematics:
         constraints.append(Constraint(f_pos_k[k] - fk(q_k[k])))
 
+        # Z contact force must be pointing up (repulsive).
+        # TODO: Add limit, normalise by Δt?
+        bounds.add_expr(lambda_k[k][:, 2], lb = 0.0, ub = ca.inf)
+
+        # Friction cone constraints (pyramidal approximation):
+        # abs(fx) <= fz * μ:
+        constraints.append(
+            Constraint(MU * lambda_k[k][:, 2] - ca.fabs(lambda_k[k][:, 0]), lb = 0.0, ub = ca.inf)
+        )
+
+        # abs(fy) <= fz * μ
+        constraints.append(
+            Constraint(MU * lambda_k[k][:, 2] - ca.fabs(lambda_k[k][:, 1]), lb = 0.0, ub = ca.inf)
+        )
+
         # Feet cannot go below the ground:
         for f_idx in range(len(FEET)):
             bounds.add_expr(f_pos_k[k][f_idx, 2], lb = FLOOR_Z, ub = ca.inf)
-
-        if in_contact:
-            # Z contact force must be pointing up (repulsive).
-            # TODO: Add limit, normalise by Δt?
-            bounds.add_expr(lambda_k[k][:, 2], lb = 0.0, ub = ca.inf)
-
-            # Friction cone constraints (pyramidal approximation):
-            # abs(fx) <= fz * μ:
-            constraints.append(
-                Constraint(MU * lambda_k[k][:, 2] - ca.fabs(lambda_k[k][:, 0]), lb = 0.0, ub = ca.inf)
-            )
-
-            # abs(fy) <= fz * μ
-            constraints.append(
-                Constraint(MU * lambda_k[k][:, 2] - ca.fabs(lambda_k[k][:, 1]), lb = 0.0, ub = ca.inf)
-            )
 
     for idx, foot in enumerate(FEET):
         for interval in list(TASK.contact_periods[idx]):

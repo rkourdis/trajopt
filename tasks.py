@@ -146,11 +146,10 @@ BACKFLIP_LAUNCH_TASK: Task = Task(
     duration = 1.0,
 
     contact_periods = [
-        ivt.IntervalTree([
-            ivt.Interval(0.0, 0.4),
-            ivt.Interval(0.6, 1.0 + ε)
-        ])
-        for _ in range(4)
+        ivt.IntervalTree([ivt.Interval(0.0, 0.35) ]),# , ivt.Interval(0.7, 1.0 + ε)]),     # FR
+        ivt.IntervalTree([ivt.Interval(0.0, 0.35) ]),#  ivt.Interval(0.7, 1.0 + ε)]),     # FL
+        ivt.IntervalTree([ivt.Interval(0.0, 1.0), ivt.Interval(0.7, 1.0 + ε)]),     # HR
+        ivt.IntervalTree([ivt.Interval(0.0, 1.0), ivt.Interval(0.7, 1.0 + ε)]),     # HL
     ],
 
     # RMS of actuation torque:
@@ -164,11 +163,11 @@ BACKFLIP_LAUNCH_TASK: Task = Task(
         # The drift seems to happen around the knot when contact is remade
         # and it might be because the constrained accelerations are not integrated
         # immediately.
-        Constraint(q_k[-1][3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
+        # Constraint(q_k[-1][3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
 
         Constraint(v_k[0]),
         Constraint(v_k[-1])
-    ] + \
-    [ Constraint(q_k[k][3:6]) for k in range(len(q_k)) ] + \
-    [ Constraint(q_k[k][0:2]) for k in range(len(q_k)) ]
+    ]
+    # [ Constraint(q_k[k][3:6]) for k in range(len(q_k)) ] + \
+    # [ Constraint(q_k[k][0:2]) for k in range(len(q_k)) ]
 )

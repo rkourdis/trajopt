@@ -5,9 +5,9 @@ from utilities import q_mrp_to_quat
 
 # Autodiff forward dynamics using CasADi.
 # Given the robot's state, velocity and torques at all actuated joints,
-# calculates all joint accelerations. If `contact` == False, the robot
-# is unconstrained. Otherwise, the constrained dynamics are computed,
-# assuming the feet are pinned in place (3D contact point).
+# calculates all joint accelerations. If no foot is in contact, the dynamics
+# are unconstrained. Otherwise, the constrained dynamics are computed with
+# the feet in active contact pinned (3D contact points).
 # The contact forces are also returned.
 class ADForwardDynamics():
     def __init__(self, cmodel, cdata, feet: list[str], act_joint_ids: list[int]):
@@ -34,15 +34,13 @@ class ADForwardDynamics():
         #     cm.corrector.Kp = 10.0
         #     cm.corrector.Kd = 2 * math.sqrt(cm.corrector.Kp)
 
-        self.contact_data = [cm.createData() for cm in self.contact_models]
-        cpin.initConstraintDynamics(cmodel, cdata, self.contact_models)
-
-    def __call__(self, q_mrp: ca.SX, v: ca.SX, τ_act: ca.SX, contact: bool):
+    def __call__(self, q_mrp: ca.SX, v: ca.SX, τ_act: ca.SX, active_conctacts: list[bool]):
         # Input:
-        # q (18 x 1, MRP), v (18 x 1), τ_act (12 x 1), contact (bool)
+        # q (18 x 1, MRP), v (18 x 1), τ_act (12 x 1), active_contacts (bool x 4)
 
         # Output:
-        # a (18 x 1)
+        # a (18 x 1), λ (4 x 3)
+        assert len(active_conctacts) == len(self.feet)
 
         # Convert the floating base orientation to quaternion for Pinocchio:
         q = q_mrp_to_quat(q_mrp)
@@ -54,17 +52,33 @@ class ADForwardDynamics():
         for act_dof, j_id in enumerate(self.act_joint_ids):
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
-        # If we're in contact, calculate the constrained (feet pinned) dynamics.
-        if contact == True:
+        # If a foot is in contact, calculate the constrained dynamics:
+        if any(active_conctacts):
+            # Initialize active contact constraints:
+            active_contact_models = [
+                cm for idx, cm in enumerate(self.contact_models)
+                if active_conctacts[idx] == True
+            ]
+            
+            active_contact_data = [cm.createData() for cm in active_contact_models]
+            cpin.initConstraintDynamics(self.cmodel, self.cdata, active_contact_models)
+
             # prox_settings = cpin.ProximalSettings(1e-12, 1e-12, 1)
             accel = cpin.constraintDynamics(
                 self.cmodel, self.cdata,
                 q, v, tau_full,
-                self.contact_models, self.contact_data #, prox_settings
+                active_contact_models, active_contact_data #, prox_settings
             )
 
-            # TODO: Make sure to return only the correct feet:
-            forces = ca.reshape(self.cdata.lambda_c, 4, 3)
+            # Return forces only for the active contacts:
+            forces = ca.SX.zeros(len(self.feet), 3)
+
+            for f_idx, force in zip(
+                (idx for idx, ac in enumerate(active_conctacts) if ac),
+                ca.vertsplit(self.cdata.lambda_c, 3)
+            ):
+                forces[f_idx, :] = force.T
+
             return accel, forces
 
         # Otherwise, return the free dynamics using the Articulated Body Algorithm:

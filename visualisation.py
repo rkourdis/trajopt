@@ -10,14 +10,18 @@ def visualise_solution(filename: str, n_knots: int, delta_t: float, robot: pin.R
         soln = pickle.load(rf)
     
     traj = Trajectory.load_from_vec(n_knots, robot, soln["x"])
+    print(traj.q_k[-1][:6])
 
     input(f"Start trajectory ({n_knots * delta_t * 1e+3}ms)!")
 
     for k, q_mrp in enumerate(traj.q_k):
         print(f"Knot: {k}, time: {k * delta_t}s")
         robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
+
+        print(traj.f_pos_k[k])
+
         time.sleep(delta_t * 2)
-        input()
+        # input()
 
 if __name__ == "__main__":
     from robot import load_solo12

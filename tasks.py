@@ -22,9 +22,9 @@ class Task:
     # Periods of ground contact for each foot:
     contact_periods: list[ivt.IntervalTree]
     
-    # Instantaneous trajectory error to minimise. Given t, q, v, a, τ at a collocation
+    # Instantaneous trajectory error to minimise. Given t, q, v, a, τ, λ at a collocation
     # point returns how far away the trajectory is from the desired one at that time:
-    traj_error: Callable[[float, ca.SX, ca.SX, ca.SX, ca.SX], float]     
+    traj_error: Callable[[float, ca.SX, ca.SX, ca.SX, ca.SX, ca.SX], float]     
 
     # Given the kinematic decision variables (q_k, v_k, α_k), return a list
     # of constraints that a solution to the task needs to satisfy: 
@@ -50,7 +50,7 @@ JUMP_TASK: Task = Task(
     ],
 
     # RMS of actuation torque:
-    traj_error = lambda t, q, v, a, τ: ca.sqrt(τ.T @ τ),
+    traj_error = lambda t, q, v, a, τ, λ: ca.sqrt(τ.T @ τ),
 
     get_kinematic_constraints = lambda q_k, v_k, a_k, params: [
         # Feet in standing V at the beginning:
@@ -68,92 +68,78 @@ JUMP_TASK: Task = Task(
     ]
 )
 
-# BACKFLIP_LAND_TASK: Task = Task(
-#     name = "backflip_land",
-#     duration = 1.0,
+BACKFLIP_LAND_TASK: Task = Task(
+    name = "backflip_land",
+    duration = 1.0,
 
-#     # Flip will last 600ms:
-#     contact_periods = [
-#         ivt.IntervalTree([ivt.Interval(0.3, 1.0 + ε)]),  # FR
-#         ivt.IntervalTree([ivt.Interval(0.3, 1.0 + ε)]),  # FL
-#         ivt.IntervalTree([ivt.Interval(0.35, 1.0 + ε)]), # HR
-#         ivt.IntervalTree([ivt.Interval(0.35, 1.0 + ε)]), # HL
-#     ],
+    contact_periods = [
+        ivt.IntervalTree([ivt.Interval(0.3, 1.0 + ε)]), # FR
+        ivt.IntervalTree([ivt.Interval(0.3, 1.0 + ε)]), # FL
+        ivt.IntervalTree([ivt.Interval(0.4, 1.0 + ε)]), # HR
+        ivt.IntervalTree([ivt.Interval(0.4, 1.0 + ε)]), # HL
+    ],
 
-#     # Minimize joint velocity when airborne, then contact forces and orientation:
-#     traj_error = \
-#         lambda t, q, v, a, τ: 
-#             # ca.sqrt(τ.T @ τ if t < 0.3 else ca.sum1(ca.diag(λ @ λ.T))),
-#             ca.sqrt(v[6:].T @ v[6:]         
-#                 if t < 0.3                  
-#             else ca.sum1(ca.diag(λ @ λ.T))), # + 12.0 * q[3:6].T @ q[3:6],
+    traj_error = lambda t, q, v, a, τ, λ: ca.sqrt(τ.T @ τ),
 
-#     get_kinematic_constraints = lambda q_k, v_k, a_k, params: [
-#         Constraint(q_k[0][0], lb = -0.2, ub = -0.2),      # We give it 40cm backwards slack
-#         Constraint(q_k[0][1], lb = 0.0,  ub = 0.0),
-#         Constraint(q_k[0][2], lb = 0.4,  ub = 0.4),       # 0.44145m for 600deg/s rotation rate
-#         Constraint(q_k[0][3:6] - ca.SX([0.0, 1.0, 0.0])), # Switched MRP
+    # # Minimize joint velocity when airborne, then contact forces:
+    # traj_error = \
+    #     lambda t, q, v, a, τ, λ: 
+    #         ca.sqrt(v[6:].T @ v[6:]         
+    #             if t < 0.3                  
+    #         else ca.sum1(ca.diag(λ @ λ.T))), # + 12.0 * q[3:6].T @ q[3:6],
 
-#         # Feet configuration mid-flip
-#         Constraint(q_k[0][6:] - load_robot_pose(Pose.STANDING_V)[0][6:]),
+    get_kinematic_constraints = lambda q_k, v_k, a_k, params: [
+        # # Torso has moved backwards at touchdown:
+        # Constraint(q_k[math.ceil(0.3 * params["FREQ_HZ"])][0], lb = -ca.inf, ub = -0.3),
 
-#         # Torso has moved backwards at touchdown:
-#         Constraint(q_k[math.ceil(0.3 * params["FREQ_HZ"])][0], lb = -0.4, ub = -0.4),
+        # # # Orientation is horizontal at touchdown:
+        # # Constraint(q_k[math.ceil(0.3 * params["FREQ_HZ"])][3:6]),
 
-#         # # Orientation is horizontal at touchdown:
-#         # Constraint(q_k[math.ceil(0.3 * params["FREQ_HZ"])][3:6]),
+        # # Torso is above the ground at a certain height at the end:
+        # Constraint(q_k[-1][2], lb = params["FLOOR_Z"] + 0.2, ub = ca.inf),
 
-#         # Flipping velocity:
-#         Constraint(v_k[0][3], lb = 0.0,     ub = 0.0),
-#         Constraint(v_k[0][4], lb = -ca.inf, ub = 0.0),
-#         Constraint(v_k[0][5], lb = 0.0,     ub = 0.0),
+        # # The entire robot is static and horizontal at the end. Legs in V configuration.
+        # Constraint(q_k[-1][3:6]),
+        # Constraint(v_k[-1]),
+        # Constraint(q_k[-1][6:] - load_robot_pose(Pose.STANDING_V)[0][6:]),
 
-#         # # Torso is above the ground at a certain height at the end:
-#         # Constraint(q_k[-1][2], lb = params["FLOOR_Z"] + 0.2, ub = ca.inf),
+        # # Front legs are in front of back legs, by a bit!
+        # Constraint(f_pos_k[-1][0, 0] - f_pos_k[-1][2, 0], lb = 0.1, ub = ca.inf),
+        # Constraint(f_pos_k[-1][1, 0] - f_pos_k[-1][3, 0], lb = 0.1, ub = ca.inf),
+    ]
 
-#         # The entire robot is static and horizontal at the end. Legs in V configuration.
-#         Constraint(q_k[-1][3:6]),
-#         Constraint(v_k[-1]),
-#         Constraint(q_k[-1][6:] - load_robot_pose(Pose.STANDING_V)[0][6:]),
+    # list(
+    #     chain.from_iterable([
+    #         [
+    #             # Keep FR/FL HFE at less than fully folded as there's the joint stopper:
+    #             Constraint(q_k[k][7], lb = -ca.inf, ub = np.deg2rad(85)),
+    #             Constraint(q_k[k][10], lb = -ca.inf, ub = np.deg2rad(85)),
 
-#         # # Front legs are in front of back legs, by a bit!
-#         # Constraint(f_pos_k[-1][0, 0] - f_pos_k[-1][2, 0], lb = 0.1, ub = ca.inf),
-#         # Constraint(f_pos_k[-1][1, 0] - f_pos_k[-1][3, 0], lb = 0.1, ub = ca.inf),
-#     ] + \
-    
-    
-#     list(
-#         chain.from_iterable([
-#             [
-#                 # Keep FR/FL HFE at less than fully folded as there's the joint stopper:
-#                 Constraint(q_k[k][7], lb = -ca.inf, ub = np.deg2rad(85)),
-#                 Constraint(q_k[k][10], lb = -ca.inf, ub = np.deg2rad(85)),
-
-#                 # Keep the front / hind two knees at an angle of less than 125 / 120 deg after the landing.
-#                 # This is a hack to make sure the knees don't go below the ground :) 
-#                 Constraint(q_k[k][8], lb =  -np.deg2rad(125), ub = ca.inf),     # Front
-#                 Constraint(q_k[k][11], lb = -np.deg2rad(125), ub = ca.inf),
-#                 Constraint(q_k[k][14], lb = -ca.inf, ub = np.deg2rad(120)),     # Hind
-#                 Constraint(q_k[k][17], lb = -ca.inf, ub = np.deg2rad(120))
-#             ]
-#             for k in range(math.ceil(0.3 * params["FREQ_HZ"]), params["N_KNOTS"])
-#         ]
-#     ))
-# )
+    #             # Keep the front / hind two knees at an angle of less than 125 / 120 deg after the landing.
+    #             # This is a hack to make sure the knees don't go below the ground :) 
+    #             Constraint(q_k[k][8], lb =  -np.deg2rad(125), ub = ca.inf),     # Front
+    #             Constraint(q_k[k][11], lb = -np.deg2rad(125), ub = ca.inf),
+    #             Constraint(q_k[k][14], lb = -ca.inf, ub = np.deg2rad(120)),     # Hind
+    #             Constraint(q_k[k][17], lb = -ca.inf, ub = np.deg2rad(120))
+    #         ]
+    #         for k in range(math.ceil(0.3 * params["FREQ_HZ"]), params["N_KNOTS"])
+    #     ]
+    # ))
+)
 
 BACKFLIP_LAUNCH_TASK: Task = Task(
     name = "backflip_launch",
     duration = 1.0,
 
     contact_periods = [
-        ivt.IntervalTree([ivt.Interval(0.0, 0.35) ]),# , ivt.Interval(0.7, 1.0 + ε)]),     # FR
-        ivt.IntervalTree([ivt.Interval(0.0, 0.35) ]),#  ivt.Interval(0.7, 1.0 + ε)]),     # FL
-        ivt.IntervalTree([ivt.Interval(0.0, 1.0), ivt.Interval(0.7, 1.0 + ε)]),     # HR
-        ivt.IntervalTree([ivt.Interval(0.0, 1.0), ivt.Interval(0.7, 1.0 + ε)]),     # HL
+        ivt.IntervalTree([ivt.Interval(0.0, 0.7)]),     # FR
+        ivt.IntervalTree([ivt.Interval(0.0, 0.7)]),     # FL
+        ivt.IntervalTree([ivt.Interval(0.0, 0.8)]),     # HR
+        ivt.IntervalTree([ivt.Interval(0.0, 0.8)]),     # HL
     ],
 
     # RMS of actuation torque:
-    traj_error = lambda t, q, v, a, τ: ca.sqrt(τ.T @ τ),
+    traj_error = lambda t, q, v, a, τ, λ: ca.sqrt(τ.T @ τ),
 
     get_kinematic_constraints = lambda q_k, v_k, a_k, params: [
         Constraint(q_k[0] - load_robot_pose(Pose.STANDING_V)[0]),
@@ -166,8 +152,21 @@ BACKFLIP_LAUNCH_TASK: Task = Task(
         # Constraint(q_k[-1][3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
 
         Constraint(v_k[0]),
-        Constraint(v_k[-1])
-    ]
-    # [ Constraint(q_k[k][3:6]) for k in range(len(q_k)) ] + \
+        Constraint(q_k[-1][0:6] - ca.SX([-0.4, 0.0, 0.2, 0.0, -1.0, 0.0])),
+
+        Constraint(v_k[-1][0:3]),
+        Constraint(v_k[-1][3], lb = 0.0,     ub = 0.0),
+        Constraint(v_k[-1][4], lb = -ca.inf, ub = 0.0),
+        Constraint(v_k[-1][5], lb = 0.0,     ub = 0.0),
+    ] + \
+    [ Constraint(v_k[k][3]) for k in range(len(q_k)) ] + \
+    [ Constraint(v_k[k][5]) for k in range(len(q_k)) ] + \
+    [ Constraint(q_k[k][4], lb = 0.0, ub = 0.1) for k in range(len(q_k)) if k * params["DELTA_T"] < 0.7 ] + \
+    [ Constraint(q_k[k][8], lb =  -np.deg2rad(100), ub = ca.inf) for k in range(len(q_k)) if k * params["DELTA_T"] < 0.7 ] + \
+    [ Constraint(q_k[k][11], lb = -np.deg2rad(100), ub = ca.inf) for k in range(len(q_k)) if k * params["DELTA_T"] < 0.7 ] + \
+    [ Constraint(q_k[k][6]) for k in range(len(q_k)) if k * params["DELTA_T"] > 0.8 ] + \
+    [ Constraint(q_k[k][9]) for k in range(len(q_k)) if k * params["DELTA_T"] > 0.8 ] + \
+    [ Constraint(q_k[k][12]) for k in range(len(q_k)) if k * params["DELTA_T"] > 0.8 ] + \
+    [ Constraint(q_k[k][15]) for k in range(len(q_k)) if k * params["DELTA_T"] > 0.8 ]
     # [ Constraint(q_k[k][0:2]) for k in range(len(q_k)) ]
 )

@@ -9,7 +9,7 @@ from poses import Pose
 from robot import load_solo12
 from guesses import *
 from visualisation import visualise_solution
-from utilities import integrate_state, flatten
+from utilities import integrate_state, flatten, switch_mrp_in_q, ca_to_np
 
 from transcription import Constraint, VariableBounds
 from dynamics import ADForwardDynamics
@@ -18,7 +18,7 @@ from kinematics import ADFootholdKinematics
 from tasks import *
 
 if __name__ == "__main__":
-    TASK = BACKFLIP_LAUNCH_TASK
+    TASK = BACKFLIP_LAND_TASK
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--visualise', action='store_true')
@@ -45,6 +45,28 @@ if __name__ == "__main__":
     # Instantiate dynamics and kinematics routines:
     fd = ADForwardDynamics(cmodel, cdata, feet = FEET, act_joint_ids = actuated_joints)
     fk = ADFootholdKinematics(cmodel, cdata, feet = FEET)
+
+    # launch = prev_soln_guess(40, robot, "backflip_launch_40hz_1000ms.bin")
+
+    # q0, v0, a0, tau0 = launch.q_k[-1], launch.v_k[-1], launch.a_k[-1], launch.tau_k[-1]
+    # q, v = q0, v0
+    # qs = []
+
+    # for _ in range(1000):
+    #     dt = 0.01
+    #     a, _ = fd(ca.SX(q), ca.SX(v), ca.SX(tau0), active_conctacts = [False] * 4)
+    #     v += a * dt
+    #     q = integrate_state(q, v * dt)
+
+    #     qs.append(q)
+
+    # from utilities import q_mrp_to_quat, ca_to_np
+    # for q in qs:
+    #     robot.display(ca_to_np(q_mrp_to_quat(q)))
+    #     print(q)
+    #     input()
+
+    # exit()
 
     if options.visualise:
         visualise_solution(OUTPUT_FILENAME, N_KNOTS, DELTA_T, robot)
@@ -78,7 +100,8 @@ if __name__ == "__main__":
         bounds.add_expr(q_k[k][2], lb = FLOOR_Z + 0.08, ub = ca.inf)
 
         # Joint torque limits in N*m:
-        bounds.add_expr(tau_k[k], lb = -2, ub = 2)
+        bounds.add_expr(tau_k[k], lb = -1.8, ub = 1.8)
+        # bounds.add_expr(tau_k[k], lb = -2, ub = 2)
 
         # Integration constraints:
         # ========================
@@ -124,7 +147,7 @@ if __name__ == "__main__":
     for idx, foot in enumerate(FEET):
         for interval in list(TASK.contact_periods[idx]):
             c_knot = math.ceil(interval[0] * FREQ_HZ - ε)
-
+            
             # Add constraint for the feet height at the knot
             # where contact starts. The feet should stay in place
             # for the knots that follow, as we're enforcing the constraint
@@ -143,7 +166,7 @@ if __name__ == "__main__":
     # Integrate trajectory error to minimize, normalised by the trajectory duration:
     objective = sum(
         DELTA_T / TASK.duration * 
-            TASK.traj_error(k * DELTA_T, q_k[k], v_k[k], a_k[k], tau_k[k])
+            TASK.traj_error(k * DELTA_T, q_k[k], v_k[k], a_k[k], tau_k[k], lambda_k[k])
 
         for k in range(N_KNOTS)
     )
@@ -156,6 +179,28 @@ if __name__ == "__main__":
         q_k, v_k, a_k,
         {"FLOOR_Z": FLOOR_Z, "FREQ_HZ": FREQ_HZ, "N_KNOTS": N_KNOTS, "DELTA_T": DELTA_T}
     )
+
+
+    # Add continuity constraints, switch MRP:
+    if TASK == BACKFLIP_LAND_TASK:
+        launch = prev_soln_guess(160, robot, "backflip_launch_160hz_1000ms.bin")
+
+        q_start_switched = switch_mrp_in_q(launch.q_k[-1])
+        constraints.append(Constraint(q_k[0] - q_start_switched))
+        constraints.append(Constraint(v_k[0] - launch.v_k[-1]))
+        # constraints.append(Constraint(a_k[0] - launch.a_k[-1]))
+        constraints.append(Constraint(tau_k[0] - launch.tau_k[-1]))
+        # constraints.append(Constraint(lambda_k[0] - launch.lambda_k[-1]))
+
+        land_guess = Trajectory(
+            N_KNOTS,
+            q_k = [q_start_switched] * N_KNOTS,
+            v_k = [launch.v_k[-1]] * N_KNOTS,
+            a_k = [launch.a_k[-1]] * N_KNOTS,
+            tau_k = [launch.tau_k[-1]] * N_KNOTS,
+            f_pos_k = [ca_to_np(fk(q_start_switched))] * N_KNOTS,
+            lambda_k = [launch.lambda_k[-1]] * N_KNOTS,
+        )
     #############################################################
 
     #endregion
@@ -189,7 +234,7 @@ if __name__ == "__main__":
         "ftol":         1e-4,
         # "outlev":       6,
         # "outmode":      knitro.KN_OUTMODE_BOTH
-        # "bar_feasible": knitro.KN_BAR_FEASIBLE_GET_STAY,
+        "bar_feasible": knitro.KN_BAR_FEASIBLE_GET,
         # "ms_enable":    True,
         # "ms_numthreads": 8
     }
@@ -209,11 +254,12 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        x0  = const_pose_guess(N_KNOTS, Pose.STANDING_V, fk).flatten(),
-        # x0  = prev_soln_guess(
-        #    int(40 * TASK.duration), robot, "backflip_launch_40hz_1000ms.bin",
-        #    interp_knots = N_KNOTS
-        # ).flatten(),
+        # x0 = land_guess.flatten(),
+        # x0  = const_pose_guess(N_KNOTS, Pose.STANDING_V, fk).flatten(),
+        x0  = prev_soln_guess(
+           int(40 * TASK.duration), robot, "backflip_land_40hz_1000ms.bin",
+           interp_knots = N_KNOTS
+        ).flatten(),
 
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),

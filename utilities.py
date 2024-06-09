@@ -10,7 +10,7 @@ from liecasadi import SE3, SE3Tangent
 # because of the discontinuity.
 # TODO: I think the Lie library is switching the MRP too!
 #       Try rotating with constant velocity...
-def switch_mrp(mrp: ca.SX) -> ca.SX:
+def switch_mrp(mrp: ca.SX, force = False) -> ca.SX:
     if not hasattr(switch_mrp, "ca_mrp_switch"):
         mrp_sym = ca.SX.sym("mrp_sym", 3, 1)
 
@@ -22,6 +22,9 @@ def switch_mrp(mrp: ca.SX) -> ca.SX:
             ca.Function("ca_mrp_switch_false",  [mrp_sym], [mrp_sym])
         )
 
+    if force:
+        return switch_mrp.ca_mrp_switch(True, mrp)
+    
     # When a value is actually requested, return the calculation
     # using the already computed symbolic expression:
     norm = mrp.T @ mrp
@@ -29,7 +32,7 @@ def switch_mrp(mrp: ca.SX) -> ca.SX:
 
 # Helper function to switch the MRP part of a full state vector:
 def switch_mrp_in_q(q_mrp: ca.SX) -> ca.SX:
-    return ca.vertcat(q_mrp[:3], switch_mrp(q_mrp[3:6]), q_mrp[6:])
+    return ca.vertcat(q_mrp[:3], switch_mrp(q_mrp[3:6], force = True), q_mrp[6:])
 
 # Quaternion in xyzw form to MRP:
 def quat2mrp(xyzw: ca.SX) -> ca.SX:

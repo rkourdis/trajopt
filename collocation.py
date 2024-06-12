@@ -17,6 +17,11 @@ from kinematics import ADFootholdKinematics
 
 from tasks import *
 
+# TODO: The dynamics are discontinuous! During the contact period,
+#       they force d^2/dt (constraint) = 0 ie. to _keep_ the constraint
+#       satisfied. However, the constraint needs to be satisfied in the first place!
+#       You need an impulse model for the transition!
+
 if __name__ == "__main__":
     TASK = BACKFLIP_LAND_TASK
 

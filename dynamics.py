@@ -48,14 +48,6 @@ class ADForwardDynamics():
                 local_wa_f.act(grf_at_foot)
             )
             
-        # We'll calculate the unconstrained dynamics using the ABA algorithm.
-        # The constraint forces will be chosen by the optimization so that they balance
-        # the legs on contact, as described by the contact constraints.
-        # In constrained FD, the constraint forces will be implicitly calculated and enforced,
-        # but this means that the optimization problem needs to know contact times in advance.
-        # In the unconstrained formulation we can express contact as an LCP such that the
-        # optimizer can figure out whether contact should be used, or not.
-
         # Each actuated joint is one degree of freedom. Create a robot.nv x 1
         # torque vector with only the actuated DoFs set.
         # NOTE: We skip all unactuated joints when applying torques, and external forces.
@@ -63,4 +55,7 @@ class ADForwardDynamics():
         for act_dof, j_id in enumerate(self.act_joint_ids):
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
+        # We calculate the unconstrained dynamics using the ABA algorithm.
+        # The constraint forces will be chosen by the optimization so that they balance
+        # the legs on contact, as described by the contact constraints.
         return cpin.aba(self.cmodel, self.cdata, q, v, tau_full, fext_full)

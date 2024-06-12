@@ -16,14 +16,11 @@ class Trajectory:
     tau_k: list[np.array]   = None    # 12x1
     λ_k: list[np.array]     = None    # 4x3
     f_pos_k: list[np.array] = None    # 4x3
-    f_vel_k: list[np.array] = None    # 4x3
-    f_acc_k: list[np.array] = None    # 4x3
 
     def flatten(self) -> ca.DM:
         return ca.vertcat(
             flatten(self.q_k), flatten(self.v_k), flatten(self.a_k),
-            flatten(self.tau_k), flatten(self.λ_k),
-            flatten(self.f_pos_k), flatten(self.f_vel_k), flatten(self.f_acc_k)
+            flatten(self.tau_k), flatten(self.λ_k), flatten(self.f_pos_k)
         )
     
     # Interpolate by simple repetition of knots:
@@ -47,8 +44,6 @@ class Trajectory:
         result.tau_k = repeat(self.tau_k)
         result.λ_k = repeat(self.λ_k)
         result.f_pos_k = repeat(self.f_pos_k)
-        result.f_vel_k = repeat(self.f_vel_k)
-        result.f_acc_k = repeat(self.f_acc_k)
 
         return result
 
@@ -74,41 +69,51 @@ class Trajectory:
         o, sz = o + sz * num_knots, 4 * 3
         traj.f_pos_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
 
-        o, sz = o + sz * num_knots, 4 * 3
-        traj.f_vel_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
-
-        o, sz = o + sz * num_knots, 4 * 3
-        traj.f_acc_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
-
         return traj
-    
+
 @dataclass
 class Constraint:
+    # Elementwise constraint: lb <= expr[:] <= ub
     expr:   ca.SX
     lb:     np.array
     ub:     np.array
 
-    # Create a new elementwise constraint: lb <= expr[:] <= ub
     def __init__(self, expr: ca.SX, lb: float = 0.0, ub: float = 0.0):
         assert lb <= ub
         self.expr, self.lb, self.ub = expr, np.full(expr.shape, lb), np.full(expr.shape, ub)
+
+@dataclass
+class Bound:
+    # Elementwise variable bound: lb <= variables[:] <= ub
+    variables:  ca.SX
+    lb:         float   = 0.0
+    ub:         float   = 0.0
+
+    def __post_init__(self):
+        assert self.lb <= self.ub
+        
+        for i in range(self.variables.shape[0]):
+            for j in range(self.variables.shape[1]):
+                assert self.variables[i,j].is_symbolic(), \
+                    "Bound expression contains non-leaf entries"
+
 
 class VariableBounds:
     def __init__(self):
         self.bounds: dict[str, tuple[float, float]] = {}
 
-    def add_expr(self, expr: ca.SX, lb: float, ub: float):
-        assert lb <= ub, "Lower bound must be <= upper bound"
-
-        for i in range(expr.shape[0]):
-            for j in range(expr.shape[1]):
-                var = expr[i, j]
-                assert var.is_symbolic(), "Bound expression contains non-leaf entries"
+    def add(self, bound: Bound):
+        for i in range(bound.variables.shape[0]):
+            for j in range(bound.variables.shape[1]):
+                var = bound.variables[i, j]
                 
                 # If there's an existing bound, make it tighter:
-                existing_bound = self.get_bounds(var.name())
-                self.bounds[var.name()] = (max(lb, existing_bound[0]), min(ub, existing_bound[1]))
+                existing_bound = self.get_bound(var.name())
+                self.bounds[var.name()] = (
+                    max(bound.lb, existing_bound[0]),
+                    min(bound.ub, existing_bound[1])
+                )
     
-    def get_bounds(self, var_name: str) -> tuple[float, float]:
+    def get_bound(self, var_name: str) -> tuple[float, float]:
         return b if (b := self.bounds.get(var_name)) else (-ca.inf, ca.inf)
     

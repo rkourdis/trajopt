@@ -21,12 +21,8 @@ def const_pose_guess(n_knots: int, fk: ADFootholdKinematics, pose: Pose = None) 
     a0 = np.zeros((fk.cmodel.nv, 1))                      
 
     # Create numerical instance of FK to calculate feet kinematics:
-    q_sym, v_sym, a_sym = \
-        ca.SX.sym("q_sym", q0.shape), ca.SX.sym("v_sym", v0.shape), ca.SX.sym("a_sym", a0.shape)
-    
-    f_pos_0, f_vel_0, f_acc_0 = ca.Function(
-        "num_fk_pos", [q_sym, v_sym, a_sym], fk(q_sym, v_sym, a_sym)
-    )(q0, v0, a0)
+    q_sym = ca.SX.sym("q_sym", q0.shape)
+    f_pos_0 = ca.Function("num_fk_pos", [q_sym], [fk(q_sym)])(q0)
 
     return Trajectory(
         num_knots   = n_knots,
@@ -36,8 +32,6 @@ def const_pose_guess(n_knots: int, fk: ADFootholdKinematics, pose: Pose = None) 
         tau_k       = [np.copy(tau0) for _ in range(n_knots)],
         λ_k         = [np.copy(λ0) for _ in range(n_knots)],
         f_pos_k     = [np.copy(f_pos_0) for _ in range(n_knots)],
-        f_vel_k     = [np.copy(f_vel_0) for _ in range(n_knots)],
-        f_acc_k     = [np.copy(f_acc_0) for _ in range(n_knots)]
     )
 
 # Loads a previous solution as an initial guess trajectory.

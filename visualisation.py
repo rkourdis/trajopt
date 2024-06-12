@@ -15,6 +15,7 @@ def visualise_solution(filename: str, n_knots: int, delta_t: float, robot: pin.R
 
     for k, q_mrp in enumerate(traj.q_k):
         print(f"Knot: {k}, time: {k * delta_t}s")
+        print(traj.λ_k[k])
         robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
         time.sleep(delta_t * 2)
         input()
@@ -23,9 +24,9 @@ if __name__ == "__main__":
     from robot import load_solo12
     
     FREQ_HZ = 60
-    DURATION = 2.0
+    DURATION = 1.0
     FLOOR_Z = -0.226274
-    FILENAME = "backflip_launch_60hz_2000ms.bin"
+    FILENAME = "jump_60hz_1000ms_so_good.bin"
 
     robot, _ = load_solo12(FLOOR_Z, visualise = True)
     visualise_solution(FILENAME, int(FREQ_HZ * DURATION), 1 / FREQ_HZ, robot)

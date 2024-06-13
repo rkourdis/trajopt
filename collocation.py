@@ -28,7 +28,7 @@ if __name__ == "__main__":
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
     MU = 0.6
-    FREQ_HZ = 80
+    FREQ_HZ = 20
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -105,7 +105,6 @@ if __name__ == "__main__":
             constraints.append(Constraint(q_k[k] - integrate_state(q_k[k-1], DELTA_T * v_k[k])))
 
         # Feet contact constraints:
-        # TODO: Clean up...
         # =========================
         for foot_idx in range(len(FEET)):
             contact_ivt = TASK.contact_periods[foot_idx]
@@ -191,12 +190,9 @@ if __name__ == "__main__":
     )
 
     for constr in kin_constr:
-        if isinstance(constr, Bound):
-            bounds.add(constr)
-        elif isinstance(constr, Constraint):
-            constraints.append(constr)
-        else:
-            assert False
+        if isinstance(constr, Bound):           bounds.add(constr)
+        elif isinstance(constr, Constraint):    constraints.append(constr)
+        else:                                   assert False
     #############################################################
 
     #endregion
@@ -205,11 +201,18 @@ if __name__ == "__main__":
     print("Creating NLP description...")
 
     decision_vars = ca.vertcat(
-        *q_k, *v_k, *a_k, *tau_k, flatten(λ_k), flatten(f_pos_k), flatten(slack_vars)
+        *q_k, *v_k, *a_k, *tau_k,
+        flatten(λ_k), flatten(f_pos_k), # ...
+
+        # Appended last:
+        flatten(slack_vars)
     )
 
+    # Keep a dictionary of variables names to indices so that we convert the
+    # complementarity constraints to index tuples for Knitro:
     var_indices = {
-        decision_vars[idx].name(): idx for idx in range(decision_vars.shape[0])
+        decision_vars[v_idx].name(): v_idx
+        for v_idx in range(decision_vars.shape[0])
     } 
 
     problem = {
@@ -262,15 +265,15 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        # x0  = np.append(
-        #     const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
-        #     np.zeros(flatten(slack_vars).shape)
-        # ),
-
         x0  = np.append(
-            prev_soln_guess(int(40 * TASK.duration), robot, "jump_40hz_1000ms.bin", interp_knots = N_KNOTS).flatten(),
+            const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
             np.zeros(flatten(slack_vars).shape)
         ),
+
+        # x0  = np.append(
+        #     prev_soln_guess(int(40 * TASK.duration), robot, "jump_40hz_1000ms.bin", interp_knots = N_KNOTS).flatten(),
+        #     np.zeros(flatten(slack_vars).shape)
+        # ),
 
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),

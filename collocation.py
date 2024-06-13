@@ -92,8 +92,8 @@ if __name__ == "__main__":
         # Robot torso cannot go below the ground:
         bounds.add(Bound(q_k[k][2], lb = FLOOR_Z + 0.08, ub = ca.inf))
 
-        # # Joint torque limits in N*m:
-        # bounds.add_bound(Bound(tau_k[k], lb = -2, ub = 2))
+        # Joint torque limits in N*m:
+        bounds.add(Bound(tau_k[k], lb = -1.9, ub = 1.9))
 
         # Forward foothold kinematics:
         constraints.append(Constraint(f_pos_k[k] - fk(q_k[k])))

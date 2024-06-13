@@ -58,4 +58,8 @@ class ADForwardDynamics():
         # We calculate the unconstrained dynamics using the ABA algorithm.
         # The constraint forces will be chosen by the optimization so that they balance
         # the legs on contact, as described by the contact constraints.
-        return cpin.aba(self.cmodel, self.cdata, q, v, tau_full, fext_full)
+
+        # Add a bit of viscous friction to the joints:
+        damping = ca.vertcat(ca.SX.zeros(6), -0.01 * v[6:])
+        
+        return cpin.aba(self.cmodel, self.cdata, q, v, tau_full + damping, fext_full)

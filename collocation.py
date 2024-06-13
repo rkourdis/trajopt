@@ -8,8 +8,8 @@ from pinocchio import casadi as cpin
 from poses import Pose
 from robot import load_solo12
 from guesses import *
+from utilities import flatten, integrate_state
 from visualisation import visualise_solution
-from utilities import integrate_state, flatten
 
 from transcription import Constraint, VariableBounds
 from dynamics import ADForwardDynamics
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     complementarities = []
 
     for k in range(N_KNOTS):
-        q_k.append(ca.SX.sym(f"q_{k}", robot.nq - 1))   # We will represent orientations with MRP instead of quaternions
+        q_k.append(ca.SX.sym(f"q_{k}", robot.nq))   # 19 x 1
         v_k.append(ca.SX.sym(f"v_{k}", robot.nv))       # 18 x 1
         a_k.append(ca.SX.sym(f"a_{k}", robot.nv))       # 18 x 1
 
@@ -98,6 +98,10 @@ if __name__ == "__main__":
         # Forward foothold kinematics:
         constraints.append(Constraint(f_pos_k[k] - fk(q_k[k])))
         
+        # Orientation manifold constraint (quaternion unit norm):
+        quat = q_k[k][3:7]
+        constraints.append(Constraint(quat.T @ quat - 1))
+
         # Integration constraints, using implicit Euler:
         # ==============================================
         if k > 0:

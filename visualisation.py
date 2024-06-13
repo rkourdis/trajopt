@@ -15,7 +15,7 @@ def visualise_solution(filename: str, n_knots: int, delta_t: float, robot: pin.R
 
     for k, q in enumerate(traj.q_k):
         print(f"Knot: {k}, time: {k * delta_t}s")
-        print(traj.λ_k[k])
+        print(traj.tau_k[k])
         
         robot.display(ca_to_np(q))
         time.sleep(delta_t * 2)

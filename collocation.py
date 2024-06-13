@@ -18,7 +18,7 @@ from kinematics import ADFootholdKinematics
 from tasks import *
 
 if __name__ == "__main__":
-    TASK = JUMP_TASK
+    TASK = BACKFLIP_TASK
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--visualise', action='store_true')
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
     MU = 0.6
-    FREQ_HZ = 20
+    FREQ_HZ = 60
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -92,14 +92,13 @@ if __name__ == "__main__":
         # Robot torso cannot go below the ground:
         bounds.add(Bound(q_k[k][2], lb = FLOOR_Z + 0.08, ub = ca.inf))
 
-        # # Joint torque limits in N*m:
-        # bounds.add_bound(Bound(tau_k[k], lb = -2, ub = 2))
+        # Joint torque limits in N*m:
+        bounds.add(Bound(tau_k[k], lb = -2, ub = 2))
 
         # Forward foothold kinematics:
         constraints.append(Constraint(f_pos_k[k] - fk(q_k[k])))
         
         # Orientation manifold constraint (quaternion unit norm):
-        
         # quat = q_k[k][3:7]    # quat.T @ quat takes more iterations but returns a better result?
         quat_norm = ca.norm_2(q_k[k][3:7])
         constraints.append(Constraint(quat_norm - 1))
@@ -192,7 +191,8 @@ if __name__ == "__main__":
     print("Adding trajectory kinematic constraints...")
 
     kin_constr = TASK.get_kinematic_constraints(
-        q_k, v_k, a_k, f_pos_k, {"FLOOR_Z": FLOOR_Z}
+        q_k, v_k, a_k, f_pos_k,
+        {"FLOOR_Z": FLOOR_Z, "FREQ_HZ": FREQ_HZ}
     )
 
     for constr in kin_constr:
@@ -243,6 +243,7 @@ if __name__ == "__main__":
         "feastol":          1e-3,
         "ftol":             1e-4,
         "presolve_level":   knitro.KN_PRESOLVE_ADVANCED,
+        # "outlev":           knitro.KN_OUTLEV_ALL,
         # "bar_feasible": knitro.KN_BAR_FEASIBLE_GET_STAY,
         # "ms_enable":    True,
         # "ms_numthreads": 8,
@@ -271,15 +272,18 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        x0  = np.append(
-            const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
-            np.zeros(flatten(slack_vars).shape)
-        ),
-
         # x0  = np.append(
-        #     prev_soln_guess(int(40 * TASK.duration), robot, "jump_40hz_1000ms.bin", interp_knots = N_KNOTS).flatten(),
+        #     const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
         #     np.zeros(flatten(slack_vars).shape)
         # ),
+
+        x0  = np.append(
+            prev_soln_guess(
+                int(30 * TASK.duration), robot, f"{TASK.name}_30hz_1600ms.bin", interp_knots = N_KNOTS
+            ).flatten(),
+
+            np.zeros(flatten(slack_vars).shape)
+        ),
 
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),

@@ -24,9 +24,15 @@ def const_pose_guess(n_knots: int, fk: ADFootholdKinematics, pose: Pose = None) 
     q_sym = ca.SX.sym("q_sym", q0.shape)
     f_pos_0 = ca.Function("num_fk_pos", [q_sym], [fk(q_sym)])(q0)
 
+    q_s = [np.copy(q0) for _ in range(n_knots)]
+
+    for k in range(n_knots):
+        if k > n_knots // 2:
+            q_s[k][3:7] *= -1
+
     return Trajectory(
         num_knots   = n_knots,
-        q_k         = [np.copy(q0) for _ in range(n_knots)],
+        q_k         = q_s,
         v_k         = [np.copy(v0) for _ in range(n_knots)],
         a_k         = [np.copy(a0) for _ in range(n_knots)],
         tau_k       = [np.copy(tau0) for _ in range(n_knots)],

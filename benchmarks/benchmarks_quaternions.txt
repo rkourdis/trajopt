@@ -1,0 +1,500 @@
+# With MRPs, jump, 20Hz, μ = 0.6
+
+"""
+Knitro presolve eliminated 156 variables and 0 constraints.
+
+algorithm:               1
+bar_murule:              2
+feastol:                 0.001
+ftol:                    0.0001
+hessopt:                 1
+linsolver:               5
+numthreads:              1
+presolve_level:          2
+The problem is identified as an MPEC.
+Knitro shifted start point to satisfy presolved bounds (381 variables).
+Knitro fixing 156 variables eliminated from the presolve.
+
+Problem Characteristics                                 (   Presolved)
+-----------------------
+Objective goal:  Minimize
+Objective type:  general
+Number of variables:                               2040 (        1884)
+    bounded below only:                             341 (         341)
+    bounded above only:                               0 (           0)
+    bounded below and above:                          0 (           0)
+    fixed:                                          156 (           0)
+    free:                                          1543 (        1543)
+Number of constraints:                             1646 (        1646)
+    linear equalities:                                0 (           0)
+    quadratic equalities:                             0 (           0)
+    gen. nonlinear equalities:                     1526 (        1526)
+    linear one-sided inequalities:                    0 (           0)
+    quadratic one-sided inequalities:                 0 (           0)
+    gen. nonlinear one-sided inequalities:          120 (         120)
+    linear two-sided inequalities:                    0 (           0)
+    quadratic two-sided inequalities:                 0 (           0)
+    gen. nonlinear two-sided inequalities:            0 (           0)
+Number of complementarities:                        120 (         120)
+Number of nonzeros in Jacobian:                   27562 (       25699)
+Number of nonzeros in Hessian:                    18822 (       17118)
+
+Knitro using the Interior-Point/Barrier Direct algorithm.
+
+  Iter      Objective      FeasError   OptError    ||Step||    CGits
+--------  --------------  ----------  ----------  ----------  -------
+       0    1.459013e+00   1.603e+03
+      10    2.444089e+00   5.358e+02   3.193e+01   5.362e+00        0
+      20    2.675475e+00   1.727e+02   5.151e+01   1.751e+01        0
+      30    2.757505e+00   4.017e+01   8.859e+01   1.185e+00        0
+      40    2.759402e+00   1.436e+01   1.262e+02   9.176e+00        0
+      50    2.679710e+00   6.088e-02   2.557e-02   7.031e-01        0
+      60    2.126939e+00   3.965e+00   1.724e-02   4.305e+00        0
+      70    1.826570e+00   2.817e+00   3.109e-02   7.152e+00        0
+      80    1.693616e+00   3.833e+00   1.761e-02   2.145e+00        0
+      90    1.563590e+00   3.067e+00   6.219e-02   3.572e+00        0
+     100    1.486955e+00   4.922e-01   2.365e-01   1.124e+00        0
+     110    1.400544e+00   1.027e-02   5.911e-01   3.518e+00        1
+     120    1.340466e+00   1.959e+00   1.110e+00   1.282e-01        0
+     130    1.298568e+00   1.520e+00   4.502e-01   3.180e-01        0
+     140    1.165309e+00   7.959e-01   5.647e-03   4.426e-02        0
+     150    1.162219e+00   1.245e-03   3.159e-03   2.162e-01        0
+     160    1.028398e+00   7.232e+00   1.360e-02   1.326e+01        0
+     170    8.723467e-01   1.065e+00   2.191e-02   3.745e+00        1
+     178    8.667266e-01   4.012e-06   1.908e-03   5.894e-03        0
+
+EXIT: Primal feasible solution; terminate because the relative change in
+      the objective function < 1.000000e-04 for 5 consecutive feasible iterations.
+      Decrease ftol or increase ftol_iters to try for more accuracy.
+
+Final Statistics
+----------------
+Final objective value               =   8.66726560252225e-01
+Final feasibility error (abs / rel) =   4.01e-06 / 2.50e-09
+Final optimality error  (abs / rel) =   1.91e-03 / 1.91e-03
+# of iterations                     =        178
+# of CG iterations                  =         61
+# of function evaluations           =        232
+# of gradient evaluations           =        180
+# of Hessian evaluations            =        178
+Total program time (secs)           =       6.93660 (     6.933 CPU time)
+Time spent in evaluations (secs)    =       4.80838
+
+===============================================================================
+
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+      nlp_fg  | 153.21ms (657.54us) 152.42ms (654.16us)       233
+   nlp_gf_jg  |   1.33 s (  7.38ms)   1.33 s (  7.38ms)       180
+  nlp_hess_l  |   3.30 s ( 18.56ms)   3.31 s ( 18.57ms)       178
+       total  |   6.94 s (  6.94 s)   6.94 s (  6.94 s)         1
+"""
+
+# With quaternions, jump, 20Hz, μ = 0.6
+# No pin.normalize() calls!
+"""
+Knitro presolve eliminated 156 variables and 0 constraints.
+
+algorithm:               1
+bar_murule:              2
+feastol:                 0.001
+ftol:                    0.0001
+hessopt:                 1
+linsolver:               5
+numthreads:              1
+presolve_level:          2
+The problem is identified as an MPEC.
+Knitro shifted start point to satisfy presolved bounds (381 variables).
+Knitro fixing 156 variables eliminated from the presolve.
+
+Problem Characteristics                                 (   Presolved)
+-----------------------
+Objective goal:  Minimize
+Objective type:  general
+Number of variables:                               2060 (        1904)
+    bounded below only:                             341 (         341)
+    bounded above only:                               0 (           0)
+    bounded below and above:                          0 (           0)
+    fixed:                                          156 (           0)
+    free:                                          1563 (        1563)
+Number of constraints:                             1686 (        1686)
+    linear equalities:                                0 (           0)
+    quadratic equalities:                             0 (           0)
+    gen. nonlinear equalities:                     1566 (        1566)
+    linear one-sided inequalities:                    0 (           0)
+    quadratic one-sided inequalities:                 0 (           0)
+    gen. nonlinear one-sided inequalities:          120 (         120)
+    linear two-sided inequalities:                    0 (           0)
+    quadratic two-sided inequalities:                 0 (           0)
+    gen. nonlinear two-sided inequalities:            0 (           0)
+Number of complementarities:                        120 (         120)
+Number of nonzeros in Jacobian:                   28509 (       26643)
+Number of nonzeros in Hessian:                    19556 (       17786)
+
+Knitro using the Interior-Point/Barrier Direct algorithm.
+
+  Iter      Objective      FeasError   OptError    ||Step||    CGits
+--------  --------------  ----------  ----------  ----------  -------
+       0    1.459013e+00   1.603e+03
+      10    1.803750e+00   1.743e+02   1.043e+02   6.530e+00        0
+      20    2.075933e+00   6.053e+01   6.309e+02   6.064e+00        0
+      30    2.107809e+00   5.628e+00   5.209e-01   7.036e-01        0
+      40    2.150051e+00   3.611e+00   1.909e+00   2.916e+00        1
+      50    2.122602e+00   1.532e+00   5.574e-02   5.362e-01        0
+      60    2.101417e+00   2.156e+01   1.152e+00   6.711e+00        3
+      70    2.177130e+00   1.205e+01   3.694e-01   5.548e+00        1
+      80    2.190367e+00   2.960e-02   2.928e-02   1.203e-01        0
+      90    2.193579e+00   3.213e+00   5.302e-02   7.110e+00        1
+     100    2.194486e+00   8.669e-01   2.933e-02   1.374e-03        0
+     110    2.193053e+00   2.415e-01   2.939e-02   1.038e+00        0
+     120    2.213285e+00   2.915e-01   2.972e-02   9.909e-01        0
+     130    2.233866e+00   3.651e-01   2.968e-02   1.607e+00        0
+     140    2.254371e+00   8.471e-01   2.963e-02   1.433e+00        0
+     150    2.355334e+00   3.985e-01   3.022e-02   1.323e+01        1
+     160    2.366030e+00   4.953e-02   3.022e-02   2.758e-01        0
+     170    2.386771e+00   6.303e-02   3.023e-02   8.533e-01        1
+     180    2.445261e+00   2.845e-02   3.038e-02   7.204e-02        0
+     190    2.474487e+00   2.528e-02   3.151e-02   1.157e-01        0
+     200    2.477823e+00   4.796e-02   3.176e-02   4.972e-01        0
+     210    2.416731e+00   2.298e+01   5.098e-01   3.270e+00        0
+     220    2.481989e+00   1.370e+01   2.290e-01   2.647e+00        1
+     230    2.261626e+00   6.953e+00   2.075e+00   8.816e+00        1
+     240    2.100203e+00   4.602e+00   4.620e+00   4.492e+00        2
+     250    2.066481e+00   2.550e+00   3.163e+00   3.611e+00        2
+     260    2.039942e+00   9.631e-01   1.185e+00   2.317e+00        1
+     270    2.049648e+00   1.517e-05   5.410e-02   1.342e-03        0
+     272    2.049639e+00   5.628e-06   3.209e-02   6.525e-03        0
+
+EXIT: Primal feasible solution; terminate because the relative change in
+      the objective function < 1.000000e-04 for 5 consecutive feasible iterations.
+      Decrease ftol or increase ftol_iters to try for more accuracy.
+
+Final Statistics
+----------------
+Final objective value               =   2.04963927548645e+00
+Final feasibility error (abs / rel) =   5.63e-06 / 3.51e-09
+Final optimality error  (abs / rel) =   3.21e-02 / 3.21e-02
+# of iterations                     =        272
+# of CG iterations                  =        209
+# of function evaluations           =        472
+# of gradient evaluations           =        274
+# of Hessian evaluations            =        275
+Total program time (secs)           =      11.46692 (    11.464 CPU time)
+Time spent in evaluations (secs)    =       7.47297
+
+===============================================================================
+
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+      nlp_fg  | 300.96ms (636.29us) 300.34ms (634.97us)       473
+   nlp_gf_jg  |   2.09 s (  7.62ms)   2.09 s (  7.62ms)       274
+  nlp_hess_l  |   5.05 s ( 18.37ms)   5.05 s ( 18.38ms)       275
+       total  |  11.47 s ( 11.47 s)  11.47 s ( 11.47 s)         1
+"""
+##################################################################################
+
+# With quaternions, jump, 20Hz, μ = 0.6
+# With pin.normalize() before all dynamics code:
+
+"""
+Knitro presolve eliminated 156 variables and 0 constraints.
+
+algorithm:               1
+bar_murule:              2
+feastol:                 0.001
+ftol:                    0.0001
+hessopt:                 1
+linsolver:               5
+numthreads:              1
+presolve_level:          2
+The problem is identified as an MPEC.
+Knitro shifted start point to satisfy presolved bounds (381 variables).
+Knitro fixing 156 variables eliminated from the presolve.
+
+Problem Characteristics                                 (   Presolved)
+-----------------------
+Objective goal:  Minimize
+Objective type:  general
+Number of variables:                               2060 (        1904)
+    bounded below only:                             341 (         341)
+    bounded above only:                               0 (           0)
+    bounded below and above:                          0 (           0)
+    fixed:                                          156 (           0)
+    free:                                          1563 (        1563)
+Number of constraints:                             1686 (        1686)
+    linear equalities:                                0 (           0)
+    quadratic equalities:                             0 (           0)
+    gen. nonlinear equalities:                     1566 (        1566)
+    linear one-sided inequalities:                    0 (           0)
+    quadratic one-sided inequalities:                 0 (           0)
+    gen. nonlinear one-sided inequalities:          120 (         120)
+    linear two-sided inequalities:                    0 (           0)
+    quadratic two-sided inequalities:                 0 (           0)
+    gen. nonlinear two-sided inequalities:            0 (           0)
+Number of complementarities:                        120 (         120)
+Number of nonzeros in Jacobian:                   28509 (       26643)
+Number of nonzeros in Hessian:                    19556 (       17786)
+
+Knitro using the Interior-Point/Barrier Direct algorithm.
+
+  Iter      Objective      FeasError   OptError    ||Step||    CGits
+--------  --------------  ----------  ----------  ----------  -------
+       0    1.459013e+00   1.603e+03
+      10    1.840398e+00   2.823e+02   1.132e+02   1.400e+01        0
+      20    2.426174e+00   1.588e+02   2.547e+01   1.245e+01        1
+      30    2.540339e+00   1.146e+02   3.707e+01   3.404e+00        1
+      40    2.542915e+00   7.958e+01   4.008e+01   3.109e+00        1
+      50    2.529995e+00   2.374e+01   4.269e+01   1.104e+01        1
+      60    2.505477e+00   6.374e+00   4.710e+01   1.421e+01        0
+      70    2.370353e+00   3.683e+00   5.474e+01   8.280e+00        0
+      80    2.338472e+00   3.511e+00   2.719e+00   8.807e+00        0
+      90    2.137683e+00   1.897e+00   1.754e+00   2.440e+00        0
+     100    1.968286e+00   1.328e+00   4.925e-01   1.453e+00        0
+     110    1.861391e+00   7.768e-01   3.093e+00   7.943e-01        0
+     120    1.796805e+00   1.843e-01   9.436e+00   6.454e-01        0
+     130    1.758414e+00   1.525e-01   9.570e+00   7.248e-01        0
+     140    1.626115e+00   2.649e-01   4.996e+00   2.683e-01        0
+     150    1.583460e+00   6.229e-02   1.860e-02   3.222e+00        1
+     160    1.518073e+00   8.759e-02   3.247e-03   4.396e-01        0
+     170    1.481158e+00   9.689e-01   3.708e-03   5.136e-01        0
+     180    1.409048e+00   5.195e-01   3.155e-02   1.440e+00        0
+     190    1.367468e+00   2.946e+00   2.081e-02   1.281e+00        0
+     200    1.315990e+00   7.542e+00   1.945e-02   6.408e-01        0
+     210    1.244458e+00   1.211e-01   6.276e-02   7.441e+00        3
+     220    1.205733e+00   6.616e-01   3.033e-02   1.803e+00        2
+     230    1.174292e+00   8.969e-04   3.392e-03   3.468e-02        0
+     240    1.124982e+00   1.116e+01   4.356e-03   7.871e+00        6
+     250    1.120086e+00   2.333e-05   1.516e-03   4.743e-03        0
+     253    1.120021e+00   1.201e-05   1.499e-03   7.754e-03        0
+
+EXIT: Primal feasible solution; terminate because the relative change in
+      the objective function < 1.000000e-04 for 5 consecutive feasible iterations.
+      Decrease ftol or increase ftol_iters to try for more accuracy.
+
+Final Statistics
+----------------
+Final objective value               =   1.12002139714966e+00
+Final feasibility error (abs / rel) =   1.20e-05 / 7.49e-09
+Final optimality error  (abs / rel) =   1.50e-03 / 1.50e-03
+# of iterations                     =        253
+# of CG iterations                  =         74
+# of function evaluations           =        490
+# of gradient evaluations           =        255
+# of Hessian evaluations            =        253
+Total program time (secs)           =      10.48561 (    10.482 CPU time)
+Time spent in evaluations (secs)    =       7.18822
+
+===============================================================================
+
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+      nlp_fg  | 326.87ms (665.72us) 325.95ms (663.85us)       491
+   nlp_gf_jg  |   2.03 s (  7.95ms)   2.03 s (  7.96ms)       255
+  nlp_hess_l  |   4.80 s ( 18.99ms)   4.81 s ( 19.00ms)       253
+       total  |  10.49 s ( 10.49 s)  10.49 s ( 10.49 s)         1
+"""
+##################################################################################
+
+# Exactly the same, but with the constraint ca.norm_2(quat) - 1 instead of quat.T @ quat - 1:
+"""
+Knitro presolve eliminated 156 variables and 0 constraints.
+
+algorithm:               1
+bar_murule:              2
+feastol:                 0.001
+ftol:                    0.0001
+hessopt:                 1
+linsolver:               5
+numthreads:              1
+presolve_level:          2
+The problem is identified as an MPEC.
+Knitro shifted start point to satisfy presolved bounds (381 variables).
+Knitro fixing 156 variables eliminated from the presolve.
+
+Problem Characteristics                                 (   Presolved)
+-----------------------
+Objective goal:  Minimize
+Objective type:  general
+Number of variables:                               2060 (        1904)
+    bounded below only:                             341 (         341)
+    bounded above only:                               0 (           0)
+    bounded below and above:                          0 (           0)
+    fixed:                                          156 (           0)
+    free:                                          1563 (        1563)
+Number of constraints:                             1686 (        1686)
+    linear equalities:                                0 (           0)
+    quadratic equalities:                             0 (           0)
+    gen. nonlinear equalities:                     1566 (        1566)
+    linear one-sided inequalities:                    0 (           0)
+    quadratic one-sided inequalities:                 0 (           0)
+    gen. nonlinear one-sided inequalities:          120 (         120)
+    linear two-sided inequalities:                    0 (           0)
+    quadratic two-sided inequalities:                 0 (           0)
+    gen. nonlinear two-sided inequalities:            0 (           0)
+Number of complementarities:                        120 (         120)
+Number of nonzeros in Jacobian:                   28509 (       26643)
+Number of nonzeros in Hessian:                    19556 (       17786)
+
+Knitro using the Interior-Point/Barrier Direct algorithm.
+
+  Iter      Objective      FeasError   OptError    ||Step||    CGits
+--------  --------------  ----------  ----------  ----------  -------
+       0    1.459013e+00   1.603e+03
+      10    1.893990e+00   1.934e+02   1.253e+02   2.028e+01        0
+      20    2.171968e+00   5.133e+01   4.732e+02   8.600e+00        1
+      30    2.357662e+00   7.895e+01   3.813e+01   3.947e-01        0
+      40    2.469035e+00   1.933e+01   3.813e+01   1.492e+01        1
+      50    2.558160e+00   5.711e+00   3.813e+01   1.176e+01        0
+      60    2.665330e+00   5.966e+00   3.813e+01   1.877e+00        0
+      70    2.745360e+00   3.650e+00   3.813e+01   4.645e+00        0
+      80    2.852056e+00   3.656e+00   4.452e+01   9.723e+00        0
+      90    2.899041e+00   3.747e+00   6.219e+01   9.512e+00        2
+     100    2.851784e+00   6.431e+01   1.039e+02   8.928e+01        0
+     110    2.797840e+00   9.239e+00   3.277e+01   1.719e+01        0
+     120    2.733779e+00   6.401e+00   3.389e+01   6.573e+00        1
+     130    2.501888e+00   5.340e+01   9.747e+01   8.977e+00        0
+     140    2.324677e+00   2.149e+01   1.159e+02   4.418e+00        0
+     150    2.186304e+00   3.681e-02   7.919e+01   1.885e+00        0
+     160    2.177093e+00   7.662e-03   1.733e+00   7.996e-01        0
+     170    2.169334e+00   2.472e-05   2.197e-02   3.527e-02        0
+     180    2.163820e+00   2.869e-04   5.669e+00   9.439e-04        0
+     190    2.029466e+00   1.322e-01   1.491e-01   5.280e-01        0
+     200    1.929555e+00   9.496e-05   8.890e-03   3.731e-02        0
+     210    1.590024e+00   6.257e+01   6.605e-01   1.088e+01        1
+     220    1.428026e+00   3.752e+00   1.199e+00   2.169e-02        0
+     230    1.409146e+00   3.460e-04   1.208e+00   5.177e-02        0
+     235    1.408884e+00   7.578e-05   1.208e+00   2.876e-03        0
+
+EXIT: Primal feasible solution; terminate because the relative change in
+      the objective function < 1.000000e-04 for 5 consecutive feasible iterations.
+      Decrease ftol or increase ftol_iters to try for more accuracy.
+
+Final Statistics
+----------------
+Final objective value               =   1.40888448652847e+00
+Final feasibility error (abs / rel) =   7.58e-05 / 4.73e-08
+Final optimality error  (abs / rel) =   1.21e+00 / 1.21e+00
+# of iterations                     =        235
+# of CG iterations                  =         52
+# of function evaluations           =        311
+# of gradient evaluations           =        237
+# of Hessian evaluations            =        235
+Total program time (secs)           =      10.00392 (     9.990 CPU time)
+Time spent in evaluations (secs)    =       6.92436
+
+===============================================================================
+
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+      nlp_fg  | 217.90ms (698.39us) 216.65ms (694.38us)       312
+   nlp_gf_jg  |   2.01 s (  8.47ms)   2.01 s (  8.48ms)       237
+  nlp_hess_l  |   4.66 s ( 19.83ms)   4.66 s ( 19.84ms)       235
+       total  |   9.99 s (  9.99 s)  10.01 s ( 10.01 s)         1
+"""
+##################################################################################
+
+# The same as above (cpin.normalize() before dynamics, ca.norm_2 constraint), but with
+# manual normalization before liecasadi code:
+
+"""
+Knitro presolve eliminated 156 variables and 0 constraints.
+
+algorithm:               1
+bar_murule:              2
+feastol:                 0.001
+ftol:                    0.0001
+hessopt:                 1
+linsolver:               5
+numthreads:              1
+presolve_level:          2
+The problem is identified as an MPEC.
+Knitro shifted start point to satisfy presolved bounds (381 variables).
+Knitro fixing 156 variables eliminated from the presolve.
+
+Problem Characteristics                                 (   Presolved)
+-----------------------
+Objective goal:  Minimize
+Objective type:  general
+Number of variables:                               2060 (        1904)
+    bounded below only:                             341 (         341)
+    bounded above only:                               0 (           0)
+    bounded below and above:                          0 (           0)
+    fixed:                                          156 (           0)
+    free:                                          1563 (        1563)
+Number of constraints:                             1686 (        1686)
+    linear equalities:                                0 (           0)
+    quadratic equalities:                             0 (           0)
+    gen. nonlinear equalities:                     1566 (        1566)
+    linear one-sided inequalities:                    0 (           0)
+    quadratic one-sided inequalities:                 0 (           0)
+    gen. nonlinear one-sided inequalities:          120 (         120)
+    linear two-sided inequalities:                    0 (           0)
+    quadratic two-sided inequalities:                 0 (           0)
+    gen. nonlinear two-sided inequalities:            0 (           0)
+Number of complementarities:                        120 (         120)
+Number of nonzeros in Jacobian:                   28509 (       26643)
+Number of nonzeros in Hessian:                    19556 (       17786)
+
+Knitro using the Interior-Point/Barrier Direct algorithm.
+
+  Iter      Objective      FeasError   OptError    ||Step||    CGits
+--------  --------------  ----------  ----------  ----------  -------
+       0    1.459013e+00   1.603e+03
+      10    1.783731e+00   1.750e+02   1.429e+02   1.935e+01        0
+      20    2.099767e+00   1.438e+02   1.653e+02   1.142e+01        0
+      30    2.281175e+00   3.989e+01   1.653e+02   8.485e+00        0
+      40    2.442622e+00   1.023e+01   2.152e+02   6.778e+00        1
+      50    2.481711e+00   1.784e+00   2.152e+02   3.716e+00        0
+      60    2.494823e+00   1.451e+00   2.152e+02   1.007e+00        0
+      70    2.498650e+00   1.227e+00   2.152e+02   4.828e-01        1
+      80    2.501342e+00   6.218e-01   2.152e+02   4.526e-01        1
+      90    2.497392e+00   5.257e-02   8.455e+00   1.273e-01        0
+     100    2.529789e+00   4.043e+00   7.537e-02   1.447e+00        1
+     110    2.483446e+00   7.778e-02   3.272e-02   2.304e-01        0
+     120    2.433949e+00   1.700e-01   3.069e-02   1.814e-01        0
+     130    2.430276e+00   2.133e-01   2.987e-02   1.427e-01        0
+     140    2.433684e+00   2.555e-02   1.160e-01   6.095e-01        1
+     150    2.430491e+00   2.741e-02   2.873e-02   2.046e-01        0
+     160    2.421571e+00   1.810e+00   2.823e-02   2.265e+00        0
+     170    2.417108e+00   2.836e-02   2.810e-02   1.135e-02        0
+     180    2.417037e+00   2.837e-02   2.813e-02   2.814e-02        0
+     190    2.415494e+00   2.843e-02   2.811e-02   3.335e-01        0
+     200    2.498797e+00   1.001e+01   9.759e-01   4.306e+00        1
+     210    2.528835e+00   5.454e+00   2.121e-01   4.001e-01        0
+     220    2.565538e+00   3.098e+00   2.249e+00   4.726e-02        0
+     230    2.585250e+00   2.554e+00   3.246e+00   5.115e+00        1
+     240    2.594296e+00   2.646e+00   4.790e+00   3.103e+00        1
+     250    2.603035e+00   2.401e+00   6.958e+00   3.401e+00        1
+     260    2.613087e+00   2.061e+00   8.525e+00   2.660e+00        1
+     270    2.617759e+00   1.496e+00   9.594e+00   5.960e+00        1
+     280    2.620692e+00   6.436e-01   1.050e+01   3.816e+00        2
+     290    2.633218e+00   3.722e-01   1.088e+01   6.634e-01        0
+     300    2.644251e+00   1.081e-01   1.119e+01   4.057e-01        0
+     310    2.652187e+00   3.910e-02   4.741e+00   1.529e+00       12
+     320    2.648280e+00   7.444e-03   4.741e+00   9.920e-02        0
+     330    2.647067e+00   5.361e-02   4.741e+00   7.870e-01        0
+     340    2.638540e+00   1.178e-01   5.512e+00   1.113e-02        0
+     350    2.619296e+00   1.893e-04   3.029e-02   1.075e-02        0
+     352    2.618812e+00   1.639e-04   1.630e-02   1.941e-02        0
+
+EXIT: Primal feasible solution; terminate because the relative change in
+      the objective function < 1.000000e-04 for 5 consecutive feasible iterations.
+      Decrease ftol or increase ftol_iters to try for more accuracy.
+
+Final Statistics
+----------------
+Final objective value               =   2.61881191108983e+00
+Final feasibility error (abs / rel) =   1.64e-04 / 1.02e-07
+Final optimality error  (abs / rel) =   1.63e-02 / 1.63e-02
+# of iterations                     =        352
+# of CG iterations                  =        172
+# of function evaluations           =        695
+# of gradient evaluations           =        354
+# of Hessian evaluations            =        354
+Total program time (secs)           =      15.13723 (    15.133 CPU time)
+Time spent in evaluations (secs)    =      10.19949
+
+===============================================================================
+
+           S  :   t_proc      (avg)   t_wall      (avg)    n_eval
+      nlp_fg  | 470.39ms (675.84us) 469.08ms (673.97us)       696
+   nlp_gf_jg  |   2.87 s (  8.11ms)   2.87 s (  8.12ms)       354
+  nlp_hess_l  |   6.80 s ( 19.21ms)   6.80 s ( 19.22ms)       354
+       total  |  15.14 s ( 15.14 s)  15.14 s ( 15.14 s)         1
+"""

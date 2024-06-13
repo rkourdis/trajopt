@@ -24,6 +24,8 @@ class ADForwardDynamics():
 
         # Output:
         # a (18 x 1)
+        
+        q = cpin.normalize(self.cmodel, q)
 
         # λ contains GRFs for each foot in the local world-aligned frame.
         # Find how they're expressed in the parent joint frames at the given

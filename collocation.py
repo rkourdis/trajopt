@@ -99,8 +99,10 @@ if __name__ == "__main__":
         constraints.append(Constraint(f_pos_k[k] - fk(q_k[k])))
         
         # Orientation manifold constraint (quaternion unit norm):
-        quat = q_k[k][3:7]
-        constraints.append(Constraint(quat.T @ quat - 1))
+        
+        # quat = q_k[k][3:7]    # quat.T @ quat takes more iterations but returns a better result?
+        quat_norm = ca.norm_2(q_k[k][3:7])
+        constraints.append(Constraint(quat_norm - 1))
 
         # Integration constraints, using implicit Euler:
         # ==============================================

@@ -13,11 +13,11 @@ def visualise_solution(filename: str, n_knots: int, delta_t: float, robot: pin.R
 
     input(f"Start trajectory ({n_knots * delta_t * 1e+3}ms)!")
 
-    for k, q_mrp in enumerate(traj.q_k):
+    for k, q in enumerate(traj.q_k):
         print(f"Knot: {k}, time: {k * delta_t}s")
         print(traj.λ_k[k])
-
-        robot.display(ca_to_np(q_mrp))
+        
+        robot.display(ca_to_np(q))
         time.sleep(delta_t * 2)
         input()
 

@@ -11,6 +11,10 @@ from liecasadi import SE3, SE3Tangent
 # TODO: Try Pinocchio 3 release integrate()
 # -----------------------------------
 def integrate_state(q: ca.SX, v: ca.SX):
+    # Adding normalization here seems to make convergence more difficult...
+    # quat = q[3:7]
+    # quat_normalized = quat / ca.norm_2(quat)
+
     q_se3 = SE3(pos = q[:3], xyzw = q[3:7])
     v_se3 = SE3Tangent(v[:6])
 

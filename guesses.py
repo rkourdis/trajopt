@@ -6,7 +6,7 @@ import casadi as ca
 import pinocchio as pin
 
 from kinematics import ADFootholdKinematics
-from transcription import Trajectory
+from trajectory import Trajectory
 from poses import load_robot_pose, Pose
 
 # Creates a guess trajectory that constantly holds the desired pose.

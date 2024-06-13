@@ -2,7 +2,7 @@ import time
 import pickle
 import pinocchio as pin
 
-from transcription import Trajectory
+from trajectory import Trajectory
 from utilities import ca_to_np, q_mrp_to_quat
 
 def visualise_solution(filename: str, n_knots: int, delta_t: float, robot: pin.RobotWrapper):

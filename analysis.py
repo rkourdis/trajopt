@@ -4,7 +4,7 @@ import casadi as ca
 import matplotlib.pyplot as plt
 
 from collocation import load_solo12
-from transcription import Trajectory
+from trajectory import Trajectory
 
 def plot_traj_characteristics(traj: Trajectory, delta_t: float):
     ks = list(range(traj.num_knots))

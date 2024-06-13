@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from utilities import ε
 from poses import Pose, load_robot_pose
-from transcription import Constraint, Bound
+from constraints import Constraint, Bound
 
 @dataclass
 class Task:

@@ -11,7 +11,7 @@ from guesses import *
 from visualisation import visualise_solution
 from utilities import integrate_state, flatten
 
-from transcription import Constraint, VariableBounds
+from constraints import Constraint, VariableBounds
 from dynamics import ADForwardDynamics
 from kinematics import ADFootholdKinematics
 

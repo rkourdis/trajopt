@@ -17,6 +17,9 @@ class Trajectory:
     λ_k: list[np.array]     = None    # 4x3
     f_pos_k: list[np.array] = None    # 4x3
 
+    # For debugging purposes:
+    slack_vars: np.array    = None
+
     def flatten(self) -> ca.DM:
         return ca.vertcat(
             flatten(self.q_k), flatten(self.v_k), flatten(self.a_k),
@@ -68,6 +71,10 @@ class Trajectory:
 
         o, sz = o + sz * num_knots, 4 * 3
         traj.f_pos_k = unflatten(vec[o : o + num_knots * sz], (4, 3))
+
+        # Slack variables - always appended to the end of the variable vector:
+        o += sz * num_knots
+        traj.slack_vars = vec[o:]
 
         return traj
 

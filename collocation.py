@@ -27,8 +27,8 @@ if __name__ == "__main__":
     # The order of forces per foot WILL be as in this list:
     FEET = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
 
-    MU = 0.7
-    FREQ_HZ = 40
+    MU = 0.6
+    FREQ_HZ = 80
     DELTA_T = 1 / FREQ_HZ
     FLOOR_Z = -0.226274
     N_KNOTS = int(TASK.duration * FREQ_HZ)
@@ -53,6 +53,15 @@ if __name__ == "__main__":
     #region Collocation variables
     print("Creating collocation decision variables...")
     q_k, v_k, a_k, tau_k, λ_k, f_pos_k = [], [], [], [], [], []
+    
+    # Variables that help reformulate the problem in a way that's easier
+    # to solve, but aren't useful after the optimization.
+    # Will be appended last to the solution vector.
+    slack_vars = []
+
+    # Tuples of names of variables complementary to each other.
+    # These variables must be bounded >= 0.
+    complementarities = []
 
     for k in range(N_KNOTS):
         q_k.append(ca.SX.sym(f"q_{k}", robot.nq - 1))   # We will represent orientations with MRP instead of quaternions
@@ -105,80 +114,45 @@ if __name__ == "__main__":
                 # TODO: Add limit, normalise by Δt?
                 bounds.add(Bound(λ_k[k][foot_idx, 2], lb = 0.0, ub = ca.inf))
 
-                # Without friction cone constraints:
-                """
-                    496    1.380891e+00   2.859e-06   6.342e-03   3.203e-03        1
-                    
-                    Final Statistics
-                    ----------------
-                    Final objective value               =   1.38089102961507e+00
-                    Final feasibility error (abs / rel) =   2.86e-06 / 1.78e-09
-                    Final optimality error  (abs / rel) =   6.34e-03 / 6.34e-03
-                    # of iterations                     =        496
-                    # of CG iterations                  =        106
-                    # of function evaluations           =        896
-                    # of gradient evaluations           =        498
-                    # of Hessian evaluations            =        496
-                    Total program time (secs)           =      21.82947 (    21.826 CPU time)
-                    Time spent in evaluations (secs)    =      15.51438
-
-                    ===============================================================================
-
-                            S  :   t_proc      (avg)   t_wall      (avg)    n_eval
-                        nlp_fg  | 658.96ms (734.63us) 655.84ms (731.15us)       897
-                    nlp_gf_jg  |   4.16 s (  8.36ms)   4.17 s (  8.37ms)       498
-                    nlp_hess_l  |  10.58 s ( 21.34ms)  10.59 s ( 21.34ms)       496
-                        total  |  21.83 s ( 21.83 s)  21.84 s ( 21.84 s)         1
-                """
-
-                # With friction cone constraints:
-                """
-                    2673    1.958227e-01   2.195e-04   3.838e-03   1.993e-02        0
-
-                    EXIT: Primal feasible solution; terminate because the relative change in
-                        the objective function < 1.000000e-04 for 5 consecutive feasible iterations.
-                        Decrease ftol or increase ftol_iters to try for more accuracy.
-
-                    Final Statistics
-                    ----------------
-                    Final objective value               =   1.95822681409181e-01
-                    Final feasibility error (abs / rel) =   2.20e-04 / 1.37e-07
-                    Final optimality error  (abs / rel) =   3.84e-03 / 3.84e-03
-                    # of iterations                     =       2673
-                    # of CG iterations                  =      10966
-                    # of function evaluations           =       9019
-                    # of gradient evaluations           =       2675
-                    # of Hessian evaluations            =       2673
-                    Total program time (secs)           =     139.36000 (   139.344 CPU time)
-                    Time spent in evaluations (secs)    =      84.96542
-
-                    ===============================================================================
-
-                            S  :   t_proc      (avg)   t_wall      (avg)    n_eval
-                        nlp_fg  |   6.64 s (735.61us)   6.62 s (734.41us)      9020
-                    nlp_gf_jg  |  22.34 s (  8.35ms)  22.36 s (  8.36ms)      2675
-                    nlp_hess_l  |  55.38 s ( 20.72ms)  55.40 s ( 20.72ms)      2673
-                        total  | 139.35 s (139.35 s) 139.37 s (139.37 s)         1
-                """
-
-                # TODO: Add these, but introduce slack variables for the absolute values:
+                # Friction cone constraints (pyramidal approximation).
+                # We introduce slack variables to calculate abs(fx) and abs(fx)
+                # as otherwise the absolute value causes derivatives to be discontinuous.
+                # This way, we remove the discontinuity in the constraints and instead
+                # create new bounded variables with complementarity constraints:
+                λxy_pos_k = ca.SX.sym(f"λxy_+_{foot_idx}_{k}", 2)
+                λxy_neg_k = ca.SX.sym(f"λxy_-_{foot_idx}_{k}", 2)
                 
-                # # Friction cone constraints (pyramidal approximation):
-                # constraints.append(
-                #     Constraint(
-                #         # abs(fx) <= fz * μ:
-                #         MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 0]),
-                #         lb = 0.0, ub = ca.inf
-                #     )
-                # )
+                # λ_xy_pos >= 0, λ_xy_neg >= 0:
+                bounds.add(Bound(λxy_pos_k, lb = 0.0, ub = ca.inf))
+                bounds.add(Bound(λxy_neg_k, lb = 0.0, ub = ca.inf))
 
-                # constraints.append(
-                #     Constraint(
-                #         # abs(fy) <= fz * μ
-                #         MU * λ_k[k][foot_idx, 2] - ca.fabs(λ_k[k][foot_idx, 1]),
-                #         lb = 0.0, ub = ca.inf
-                #     )
-                # )
+                # λ_xy_pos - λ_xy_neg = λ_xy:
+                constraints.append(
+                    # Substitute: x -> x_pos - x_neg with 0 =< x_pos \perp x_neg >= 0
+                    # Then:      |x| = x_pos + x_neg
+                    Constraint((λxy_pos_k - λxy_neg_k) - λ_k[k][foot_idx, :2].T)
+                )
+                
+                # abs(λ_x,y) <= λz * μ:
+                # In this case, the complementarity constraint λ_xy_pos \perp λ_xy_neg isn't strictly
+                # required, as: if x = x_pos - x_neg then |x| = |x_pos - x_neg| <= x_pos + x_neg always.
+                # That is, x_pos + x_neg will be always >= |x| and if x_pos + x_neg is below the
+                # friction limit, then |x| must be as well.
+                # If the solver needs more tangential force, it should figure out that the maximum
+                # it can get would be by setting one of the variables to zero.
+                # However, adding the constraint seems to help convergence speed in practice.
+                constraints.append(
+                    Constraint(
+                        ca.repmat(MU * λ_k[k][foot_idx, 2], 2) - (λxy_pos_k + λxy_neg_k),
+                        lb = 0.0, ub = ca.inf
+                    )
+                )
+
+                for idx in range(2):
+                    complementarities.append((λxy_pos_k[idx].name(), λxy_neg_k[idx].name()))
+                
+                slack_vars.append(λxy_pos_k)
+                slack_vars.append(λxy_neg_k)
 
                 # Foothold constraints:
                 bounds.add(Bound(f_pos_k[k][foot_idx, 2], lb = FLOOR_Z, ub = FLOOR_Z))
@@ -231,8 +205,12 @@ if __name__ == "__main__":
     print("Creating NLP description...")
 
     decision_vars = ca.vertcat(
-        *q_k, *v_k, *a_k, *tau_k, flatten(λ_k), flatten(f_pos_k)
+        *q_k, *v_k, *a_k, *tau_k, flatten(λ_k), flatten(f_pos_k), flatten(slack_vars)
     )
+
+    var_indices = {
+        decision_vars[idx].name(): idx for idx in range(decision_vars.shape[0])
+    } 
 
     problem = {
         # Decision variables:
@@ -247,28 +225,33 @@ if __name__ == "__main__":
 
     print("Instantiating solver...")
     
-    # TODO: PRESOLVE SETTINGS!
-    # https://or.stackexchange.com/questions/3128/can-tuning-knitro-solver-considerably-make-a-difference
-
+    # NOTE: https://or.stackexchange.com/questions/3128/can-tuning-knitro-solver-considerably-make-a-difference
     knitro_settings = {
-        # "hessopt":      knitro.KN_HESSOPT_LBFGS,
-        "algorithm":    knitro.KN_ALG_BAR_DIRECT,
-        "bar_murule":   knitro.KN_BAR_MURULE_ADAPTIVE,
-        "linsolver":    knitro.KN_LINSOLVER_MA57,
-        "feastol":      1e-3,
-        "ftol":         1e-4,
+        # "hessopt":          knitro.KN_HESSOPT_LBFGS,
+        "algorithm":        knitro.KN_ALG_BAR_DIRECT,
+        "bar_murule":       knitro.KN_BAR_MURULE_ADAPTIVE,
+        "linsolver":        knitro.KN_LINSOLVER_MA57,
+        "feastol":          1e-3,
+        "ftol":             1e-4,
+        "presolve_level":   knitro.KN_PRESOLVE_ADVANCED,
         # "bar_feasible": knitro.KN_BAR_FEASIBLE_GET_STAY,
         # "ms_enable":    True,
-        # "ms_numthreads": 8
-
+        # "ms_numthreads": 8,
     }
 
     solver = ca.nlpsol(
-        "S", "knitro", problem, {"knitro": knitro_settings} #, "verbose": True}
+        "S", "knitro", problem,
+        {
+            # "verbose": True,
+            "knitro": knitro_settings,
+            "complem_variables": [
+                (var_indices[v1], var_indices[v2])
+                for v1, v2 in complementarities
+            ],
+        }
     )
 
     #endregion
-
 
     #region Solution
     print("Calling solver...")
@@ -279,13 +262,15 @@ if __name__ == "__main__":
     ]
 
     soln = solver(
-        # x0  = const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
+        # x0  = np.append(
+        #     const_pose_guess(N_KNOTS, fk, Pose.STANDING_V).flatten(),
+        #     np.zeros(flatten(slack_vars).shape)
+        # ),
 
-        x0  = prev_soln_guess(
-            int(20 * TASK.duration), robot,
-            "jump_20hz_1000ms.bin",
-            interp_knots = N_KNOTS
-        ).flatten(),
+        x0  = np.append(
+            prev_soln_guess(int(40 * TASK.duration), robot, "jump_40hz_1000ms.bin", interp_knots = N_KNOTS).flatten(),
+            np.zeros(flatten(slack_vars).shape)
+        ),
 
         lbg = flatten([c.lb for c in constraints]),
         ubg = flatten([c.ub for c in constraints]),

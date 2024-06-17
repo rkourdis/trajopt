@@ -1,31 +1,25 @@
+from fractions import Fraction
+from typing import Union, Iterator
+
 import numpy as np
 import casadi as ca
 import pinocchio as pin
-from itertools import chain
 from liecasadi import SE3, SE3Tangent
 
-# This will switch an MRP to its shadow, if it is outside the 
-# unit norm sphere. This is to avoid the singularity at 2π.
-# However, doing this makes gradient-based optimisation difficult,
-# because of the discontinuity.
-# TODO: I think the Lie library is switching the MRP too!
-#       Try rotating with constant velocity...
+MatrixLike = Union[np.ndarray, ca.SX]
+
+# This will switch an MRP to its shadow. Typically you would
+# do this if the MRP is crossing the unit norm sphere (or if
+# some other switching criterion is met), to avoid the singularity
+# at 2π. However, doing the switch conditionally during gradient-based
+# optimization increases the difficulty of the problem as a
+# discontinuity is introduced. For that reason, if a full
+# flip is needed, we'll split the problem into two halves,
+# with the MRP switched at the beginning of the second one.
+# NOTE: I think liecasadi is switching the MRP as well, a while
+#       after crossing the unit norm sphere.
 def switch_mrp(mrp: ca.SX) -> ca.SX:
-    if not hasattr(switch_mrp, "ca_mrp_switch"):
-        mrp_sym = ca.SX.sym("mrp_sym", 3, 1)
-
-        # Make a static CasADi symbolic function that will return the switched MRP,
-        # given the switching criterion:
-        switch_mrp.ca_mrp_switch = ca.Function.if_else(
-            "ca_mrp_switch",
-            ca.Function("ca_mrp_switch_true",   [mrp_sym], [-mrp_sym / (mrp_sym.T @ mrp_sym)]),
-            ca.Function("ca_mrp_switch_false",  [mrp_sym], [mrp_sym])
-        )
-
-    # When a value is actually requested, return the calculation
-    # using the already computed symbolic expression:
-    norm = mrp.T @ mrp
-    return switch_mrp.ca_mrp_switch(norm > 1, mrp)
+    return -mrp / (mrp.T @ mrp)
 
 # Helper function to switch the MRP part of a full state vector:
 def switch_mrp_in_q(q_mrp: ca.SX) -> ca.SX:
@@ -33,10 +27,8 @@ def switch_mrp_in_q(q_mrp: ca.SX) -> ca.SX:
 
 # Quaternion in xyzw form to MRP:
 def quat2mrp(xyzw: ca.SX) -> ca.SX:
-    norm = xyzw / ca.sqrt(xyzw.T @ xyzw)
-    
-    # return switch_mrp(norm[:3] / (1 + norm[3]))
-    return norm[:3] / (1 + norm[3])
+    normalized = xyzw / ca.norm_2(xyzw)
+    return normalized[:3] / (1 + normalized[3])
 
 # MRP to quaternion in xyz form:
 def mrp2quat(xyz: ca.SX) -> ca.SX:
@@ -54,11 +46,12 @@ def q_mrp_to_quat(q_mrp: ca.SX) -> ca.SX:
 def q_quat_to_mrp(q_quat: ca.SX) -> ca.SX:
     return ca.vertcat(q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:])
 
+"""
 # Given a dictionary of {"JOINT_NAME": angle} pairs, return a state vector
 # with all joints at the neutral configuration except those in the dictionary,
 # which will be set at the provided angles.
 # The returned state expresses the floating base orientation using MRP.
-def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float]):
+def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float]) -> np.ndarray:
     q_quat = pin.neutral(robot.model)
 
     for j_name, angle in joint_angles.items():
@@ -67,10 +60,12 @@ def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float])
 
     q_mrp = np.concatenate((q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:]))
     return np.expand_dims(q_mrp, axis = -1)     # 18x1
+"""
 
 # Custom state integration function. This is to avoid 
 # numerical issues with pin3's integrate during Hessian calculation.
-#  Please see: https://github.com/stack-of-tasks/pinocchio/issues/2050 for a similar issue
+# Please see: https://github.com/stack-of-tasks/pinocchio/issues/2050
+# for a similar issue.
 # Calculates the result of integrating v for a unit timestep starting from q.
 # We assume the input / output floating base orientation uses MRP.
 def integrate_state(q_mrp: ca.SX, v: ca.SX):
@@ -88,7 +83,7 @@ def integrate_state(q_mrp: ca.SX, v: ca.SX):
 
 # Daft thing converting a CasADi SX to a numpy array.
 # For some reason, np.array(SX) doesn't work? Neither .full()?
-def ca_to_np(x: ca.SX) -> np.array:
+def ca_to_np(x: ca.SX) -> np.ndarray:
     result = np.zeros(x.shape)
 
     for i in range(x.shape[0]):
@@ -97,30 +92,54 @@ def ca_to_np(x: ca.SX) -> np.array:
     
     return result
 
-# Flattens a list of SX matrixes into a single column vector.
-# Each matrix is flattened by combining all rows into a large column vector,
-# all of which are concatenated.
-def flatten(mats: list[ca.SX]) -> ca.SX:
-    # Flatten each matrix separately:
-    flattened_mats = [ca.vertcat(*ca.horzsplit(m.T)) for m in mats]
+# Iterates an SX matrix row-by-row.
+# This should be used with care as it's inefficient due to 
+# CasADi matrices being sparse.
+def ca_iter(x: ca.SX) -> Iterator[ca.SX]:
+    for row in range(x.shape[0]):
+        for col in range(x.shape[1]):
+            yield x[row, col]
 
-    # Combine all column vectors:
-    return ca.vertcat(*flattened_mats)
+# Flattens a list of matrices into a single column vector.
+# For each matrix, all rows are combined into a column vector.
+# All column vectors are then concatenated.
+def flatten_mats(mats: list[MatrixLike]) -> MatrixLike:
+    T = type(mats[0])
+
+    if T is ca.SX:
+        return ca.vertcat(*iter(ca.vertcat(*ca.horzsplit(m.T)) for m in mats))
+    elif T is np.ndarray:
+        return np.vstack([np.vstack(np.hsplit(m.T, m.shape[0])) for m in mats])
+    else:
+        raise ValueError(f"Incorrect matrix type: {T}")
 
 # Unflatten a column vector into matrices in the provided shape, row by row.
-def unflatten(vars: ca.SX, shape: tuple[int, int]) -> list[ca.SX]:
+def unflatten_mats(vars: MatrixLike, shape: tuple[int, int]) -> list[MatrixLike]:
     assert vars.shape[1] == 1
 
     num_per_mat = shape[0] * shape[1]
     assert vars.shape[0] % (num_per_mat) == 0
 
-    # Split into column vectors sized (shape[0] * shape[1]) x 1
-    mat_cols = ca.vertsplit(vars, num_per_mat)
+    # Split into column vectors sized (shape[0] * shape[1]) x 1.
+    # Then, for each column vector, split into rows of the original matrix
+    # (length shape[1]). Stack these and return.
+    T = type(vars)
+    
+    if T is ca.SX:
+        return [
+            ca.horzcat(*ca.vertsplit(mc, shape[1])).T
+            for mc in ca.vertsplit(vars, num_per_mat)
+        ]
+    
+    elif T is np.ndarray:
+        return [
+            np.hstack(np.vsplit(mc, shape[0])).T
+            for mc in np.vsplit(vars, vars.shape[0] / num_per_mat)
+        ]
 
-    return [
-        ca.horzcat(*ca.vertsplit(mc, shape[1])).T
-        for mc in mat_cols
-    ]
+    else:
+        raise ValueError(f"Incorrect matrix type: {T}")
 
-# Machine float epsilon:
-ε = np.finfo(float).eps
+# Fraction epsilon - useful for slightly extending time intervals
+# as interval tree operations aren't inclusive of the final point:
+frac_ε = Fraction("1e-9")

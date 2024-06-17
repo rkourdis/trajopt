@@ -1,14 +1,15 @@
 import casadi as ca
-import pinocchio as pin
 from pinocchio import casadi as cpin
+
+from robot import Solo12
 from utilities import q_mrp_to_quat
 
 # Autodiff foothold kinematics using CasADi.
 # Calculates foot frame positions at the provided state:
 class ADFootholdKinematics():
-    def __init__(self, cmodel, cdata, feet: list[str]):
-        self.cmodel, self.cdata = cmodel, cdata
-        self.ff_ids = [cmodel.getFrameId(f) for f in feet]
+    def __init__(self, robot: Solo12):
+        self.cmodel, self.cdata = robot.cmodel, robot.cdata
+        self.ff_ids = [self.cmodel.getFrameId(f) for f in robot.feet]
 
     def __call__(self, q_mrp: ca.SX):
         q = q_mrp_to_quat(q_mrp)

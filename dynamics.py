@@ -1,5 +1,7 @@
 import casadi as ca
 from pinocchio import casadi as cpin
+
+from robot import Solo12
 from utilities import q_mrp_to_quat
 
 # Autodiff forward dynamics using CasADi.
@@ -7,17 +9,17 @@ from utilities import q_mrp_to_quat
 # calculates the state acceleration using the Articulated Body Algorithm.
 # The foot GRFs are expressed in each foot's local world-aligned frame.
 class ADForwardDynamics():
-    def __init__(self, cmodel, cdata, feet: list[str], act_joint_ids: list[int]):
-        self.cmodel, self.cdata = cmodel, cdata
-
-        self.feet = feet
-        self.act_joint_ids = act_joint_ids
+    def __init__(self, robot: Solo12):
+        self.robot = robot
+        self.cmodel, self.cdata = robot.cmodel, robot.cdata
 
         # Frame IDs of each foot:
-        self.foot_frame_ids = [cmodel.getFrameId(f) for f in feet]
+        self.foot_frame_ids = [self.cmodel.getFrameId(f) for f in robot.feet]
 
         # Joint IDs of each foot's frame parent joint:
-        self.foot_parent_joint_ids = [cmodel.frames[ff_id].parentJoint for ff_id in self.foot_frame_ids]
+        self.foot_parent_joint_ids = [
+            self.cmodel.frames[ff_id].parentJoint for ff_id in self.foot_frame_ids
+        ]
 
     def __call__(self, q_mrp: ca.SX, v: ca.SX, τ_act: ca.SX, λ: ca.SX):
         # Input:
@@ -52,7 +54,7 @@ class ADForwardDynamics():
         # torque vector with only the actuated DoFs set.
         # NOTE: We skip all unactuated joints when applying torques, and external forces.
         tau_full = ca.SX.zeros(self.cmodel.nv, 1)
-        for act_dof, j_id in enumerate(self.act_joint_ids):
+        for act_dof, j_id in enumerate(self.robot.actuated_joints):
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
         # We calculate the unconstrained dynamics using the ABA algorithm.

@@ -26,9 +26,16 @@ class Problem:
         if self.transcribed:
             raise RuntimeError("Problem has already been transcribed!")
 
+        transcribed_subps = set()
+
         for idx, subp in enumerate(self.subproblems):
+            if subp.name in transcribed_subps:
+                raise RuntimeError("Problem can't contain a duplicate subproblem name!")
+            
             print(f"Transcribing subproblem '{subp.name}' using {subp.n_knots} knots...")
+
             subp.transcribe(is_subsequent = (idx > 0))
+            transcribed_subps.add(subp.name)
 
         # Add continuity constraints between subproblems:
         for p_idx in range(len(self.subproblems) - 1):

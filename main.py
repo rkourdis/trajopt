@@ -9,6 +9,7 @@ from robot import Solo12
 from problem import Problem
 from guesses import StandingGuess
 from transcription import Subproblem
+from continuity import ContinuityInfo
 from visualization import visualise_solution
 
 if __name__ == "__main__":
@@ -23,10 +24,11 @@ if __name__ == "__main__":
 
     problem = Problem(
         subproblems = [
-            Subproblem(
-                "jump", JumpTask, GLOBAL_FREQ_HZ, solo,
-                StandingGuess(robot = solo, switched_mrp = False)
-            )
+            Subproblem("jump_fwd", JumpTaskFwd, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False)),
+            Subproblem("jump_bwd", JumpTaskBwd, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False)),
+        ],
+        continuity_info = [
+            ContinuityInfo()
         ]
     )
 

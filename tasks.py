@@ -51,7 +51,7 @@ JumpTask: Task = Task(
         for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
     },
 
-    traj_error = lambda t, kvars: kvars.τ.T @ kvars.τ,
+    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     task_constraints = [
         (

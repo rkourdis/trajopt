@@ -41,8 +41,10 @@ class Subproblem:
             )
 
         # We'll have (duration / dt) time periods. Add an extra knot for the final point:        
-        self.n_knots                                = int(self.task.duration * self.freq_hz + 1)
-        self.dvars                                  = CollocationVars[ca.SX](self.n_knots)
+        self.n_knots = int(self.task.duration * self.freq_hz + 1)
+        assert self.n_knots > 0, "Number of knots cannot be zero!"
+
+        self.dvars = CollocationVars[ca.SX](self.n_knots)
 
     def _create_vars(self) -> None:
         for k in range(self.n_knots):
@@ -81,86 +83,97 @@ class Subproblem:
         q, v, a         = self.dvars.q_k[k],   self.dvars.v_k[k], self.dvars.a_k[k]
         q_prev, v_prev  = self.dvars.q_k[k-1], self.dvars.v_k[k-1]
 
+        # NOTE: Changing the velocity constraint to the equivalent:
+        #           v - (v_prev + dt * a) == 0
+        #       seems to make the jump problem more difficult!
+        #       Instead of 199 iterations it then takes 474, and the
+        #       final objective is 1.83 instead of 1.45...
         self.constraints.extend([
-            Constraint(v - (v_prev + float(self.dt) * a)),
+            Constraint((v - v_prev) - float(self.dt) * a),
             Constraint(q - integrate_state(q_prev, float(self.dt) * v))
         ])
     #####################################################
 
     # Foot contact constraints (reaction forces, foothold positioning):
     ###################################################################
-    def _add_contact_constraints(self, k: int, foot_idx: int) -> None:
+    def _add_contact_constraints(self, k: int) -> None:
         t, t_prev = k * self.dt, (k - 1) * self.dt
-        λ, fp     = self.dvars.λ_k[k][foot_idx, :], self.dvars.f_pos_k[k][foot_idx, :]
 
-        floor_z = self.robot.floor_z
         μ       = self.robot.μ
+        floor_z = self.robot.floor_z
 
-        # Get foot contact times from the task description:
-        contact_times = self.task.contact_periods[self.robot.feet[foot_idx]]
+        def add_constraints_for_foot(foot_idx: int):
+            λ, fp     = self.dvars.λ_k[k][foot_idx, :], self.dvars.f_pos_k[k][foot_idx, :]
 
-        # If foot isn't in contact, don't allow forces and constrain Z >= floor:
-        if not contact_times.overlaps(t):
+            # Get foot contact times from the task description:
+            contact_times = self.task.contact_periods[self.robot.feet[foot_idx]]
+
+            # If foot isn't in contact, don't allow forces and constrain Z >= floor:
+            if not contact_times.overlaps(t):
+                self.constraints.extend([
+                    Bound(λ,     lb = 0.0, ub = 0.0),
+                    Bound(fp[2], lb = floor_z, ub = ca.inf)
+                ])
+
+                return 
+
+            # Foot in contact
+            # ---------------
+
+            # 1. Allow Z-up reaction force:
+            self.constraints.append(Bound(λ[2], lb = 0.0, ub = ca.inf))
+
+            # 2. Force the foot to be on the floor:
+            self.constraints.append(Bound(fp[2], lb = floor_z, ub = floor_z))
+
+            # 3. Force the foot to not slip in the XY plane if it was in contact previously:
+            if k - 1 >= 0 and contact_times.overlaps(t_prev):
+                fp_prev = self.dvars.f_pos_k[k-1][foot_idx, :]
+                self.constraints.append(Constraint(fp[:2] - fp_prev[:2]))
+
+            # 4. Make sure the tangential contact force lies in the friction cone.
+            #    We will achieve this by adding the following constraints:
+            #       fabs(λ_x) <= μ * λ_z  and  fabs(λ_y) <= μ * λ_z
+            #    This is a pyramidal approximation of the friction cone.
+            #    The fabs(.) operation introduces derivative discontinuity in the 
+            #    constraints and makes optimization difficult. We will reformulate
+            #    the constraints using complementary slack variables to remove
+            #    that discontinuity:
+            #       If x = x_pos - x_neg and 0 =< x_pos \perp x_neg >= 0,
+            #       then |x| = x_pos + x_neg.
+            λ_xy_pos = ca.SX.sym(f"{self.name}_λxy_pos_{foot_idx}_{k}", 2)
+            λ_xy_neg = ca.SX.sym(f"{self.name}_λxy_neg_{foot_idx}_{k}", 2)
+
+            self.dvars.slack_vars.extend([λ_xy_pos, λ_xy_neg])
+
+            # 0 =< λ_xy_pos[:] \perp λ_xy_neg[:] >= 0:
             self.constraints.extend([
-                Bound(λ,     lb = 0.0, ub = 0.0),
-                Bound(fp[2], lb = floor_z, ub = ca.inf)
+                Bound(λ_xy_pos, lb = 0.0, ub = ca.inf),
+                Bound(λ_xy_neg, lb = 0.0, ub = ca.inf),
+                Complementarity(λ_xy_pos[0].name(), λ_xy_neg[0].name()),
+                Complementarity(λ_xy_pos[1].name(), λ_xy_neg[1].name()),
             ])
 
-            return 
+            # λ_xy = λ_xy_pos - λ_xy_neg:
+            self.constraints.append(Constraint(λ[:2].T - (λ_xy_pos - λ_xy_neg)))
 
-        # Foot in contact
-        # ---------------
-
-        # 1. Allow Z-up reaction force:
-        self.constraints.append(Bound(λ[2], lb = 0.0, ub = ca.inf))
-
-        # 2. Force the foot to be on the floor:
-        self.constraints.append(Bound(fp[2], lb = floor_z, ub = floor_z))
-
-        # 3. Force the foot to not slip in the XY plane if it was in contact previously:
-        if k - 1 >= 0 and contact_times.overlaps(t_prev):
-            fp_prev = self.dvars.f_pos_k[k-1][foot_idx, :]
-            self.constraints.append(Constraint(fp[:2] - fp_prev[:2]))
-        
-        # 4. Make sure the tangential contact force lies in the friction cone.
-        #    We will achieve this by adding the following constraints:
-        #       fabs(λ_x) <= μ * λ_z  and  fabs(λ_y) <= μ * λ_z
-        #    This is a pyramidal approximation of the friction cone.
-        #    The fabs(.) operation introduces derivative discontinuity in the 
-        #    constraints and makes optimization difficult. We will reformulate
-        #    the constraints using complementary slack variables to remove
-        #    that discontinuity:
-        #       If x = x_pos - x_neg and 0 =< x_pos \perp x_neg >= 0,
-        #       then |x| = x_pos + x_neg.
-        λ_xy_pos = ca.SX.sym(f"{self.name}_λxy_pos_{foot_idx}_{k}", 2)
-        λ_xy_neg = ca.SX.sym(f"{self.name}_λxy_neg_{foot_idx}_{k}", 2)
-
-        self.dvars.slack_vars.extend([λ_xy_pos, λ_xy_neg])
-
-        # 0 =< λ_xy_pos[:] \perp λ_xy_neg[:] >= 0:
-        self.constraints.extend([
-            Bound(λ_xy_pos, lb = 0.0, ub = ca.inf),
-            Bound(λ_xy_neg, lb = 0.0, ub = ca.inf),
-            Complementarity(λ_xy_pos[0].name(), λ_xy_neg[0].name()),
-            Complementarity(λ_xy_pos[1].name(), λ_xy_neg[1].name()),
-        ])
-
-        # λ_xy = λ_xy_pos - λ_xy_neg:
-        self.constraints.append(Constraint(λ[:2].T - (λ_xy_pos - λ_xy_neg)))
-
-        # fabs(λ_xy) <= λ_z * μ:
-        # NOTE: In this case, the complementarity constraint isn't strictly
-        #       required, as λ_xy_pos + λ_xy_neg >= |λ_xy| always (triangle inequality).
-        #       Therefore, if λ_xy_pos + λ_xy_neg is below the friction limit, then |λ_xy|
-        #       must be as well. If the solver needs more tangential force, it should
-        #       figure out that it can get maximum by setting one of the variables to zero.
-        #       However, adding the constraint seems to help convergence speed in practice.
-        self.constraints.append(
-            Constraint(
-                ca.repmat(μ * λ[2], 2) - (λ_xy_pos + λ_xy_neg),
-                lb = 0.0, ub = ca.inf
+            # fabs(λ_xy) <= λ_z * μ:
+            # NOTE: In this case, the complementarity constraint isn't strictly
+            #       required, as λ_xy_pos + λ_xy_neg >= |λ_xy| always (triangle inequality).
+            #       Therefore, if λ_xy_pos + λ_xy_neg is below the friction limit, then |λ_xy|
+            #       must be as well. If the solver needs more tangential force, it should
+            #       figure out that it can get maximum by setting one of the variables to zero.
+            #       However, adding the constraint seems to help convergence speed in practice.
+            self.constraints.append(
+                Constraint(
+                    ca.repmat(μ * λ[2], 2) - (λ_xy_pos + λ_xy_neg),
+                    lb = 0.0, ub = ca.inf
+                )
             )
-        )
+
+        # Add constraints for all feet:
+        for foot_idx in range(len(self.robot.feet)):
+            add_constraints_for_foot(foot_idx)
     ###################################################################
 
     # Transcribe the subproblem. If `is_subsequent`, dynamics and contact constraints
@@ -180,9 +193,7 @@ class Subproblem:
         for k in range(self.n_knots):
             if not is_subsequent or k > 0:
                 self._add_pointwise_constraints(k)
-
-                for foot_idx in range(len(self.robot.feet)):
-                    self._add_contact_constraints(k, foot_idx)
+                self._add_contact_constraints(k)
 
             if k > 0:
                 self._add_integration_constraints(k)

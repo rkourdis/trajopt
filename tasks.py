@@ -100,3 +100,76 @@ JumpTaskBwd: Task = Task(
         )
     ],
 )
+
+BackflipLaunch: Task = Task(
+    duration = Fraction("0.8"),
+    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
+
+    contact_periods = {
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.5 + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.5 + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.55 + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.55 + frac_ε)]),
+    },
+
+    task_constraints = [
+        (
+            Fraction("0.0"), 
+
+            lambda kv, solo: [
+                # Feet in standing V at the beginning:
+                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+
+                # Robot is static:
+                Bound(kv.v)
+            ]
+        ),
+
+        (
+            Fraction("0.8"),
+
+            lambda kv, solo: [
+                # Torso has gone backwards and is at a height:
+                Bound(kv.q[0], -0.5, -0.1),
+                Bound(kv.q[2], solo.floor_z + 0.2, ca.inf),
+            
+                # Torso has flipped and is still flipping:
+                Bound(kv.q[3], lb = 0.0, ub = 0.0),
+                Bound(kv.q[4], lb = -1.0, ub = -1.0),
+                Bound(kv.q[5], lb = 0.0, ub = 0.0),
+
+                Bound(kv.v[4], lb = -ca.inf, ub = 0.0),
+            ]
+        )
+    ],
+)
+
+
+BackflipLand: Task = Task(
+    duration = Fraction("0.8"),
+    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
+
+    contact_periods = {
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(0.3, 0.8 + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(0.3, 0.8 + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(0.35, 0.8 + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(0.35, 0.8 + frac_ε)]),
+    },
+
+    task_constraints = [
+        (
+            Fraction("0.8"),
+
+            lambda kv, solo: [
+                # Robot orientation and joints are back to original configuration:
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
+
+                # The manoeuvre didn't move along the Y axis:
+                Bound(kv.q[1], lb = 0.0, ub = 0.0),
+                
+                # Robot is static:
+                Bound(kv.v)
+            ]
+        )
+    ],
+)

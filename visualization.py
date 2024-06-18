@@ -1,6 +1,4 @@
-import time
 import pickle
-# import pinocchio as pin
 
 from robot import Solo12
 from problem import Problem

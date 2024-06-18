@@ -9,6 +9,7 @@ from robot import Solo12
 from problem import Problem
 from guesses import StandingGuess
 from transcription import Subproblem
+from utilities import switch_mrp_in_q
 from continuity import ContinuityInfo
 from visualization import visualise_solution
 
@@ -17,18 +18,29 @@ if __name__ == "__main__":
     parser.add_argument('--visualize', action='store_true')
     options = parser.parse_args()
 
-    GLOBAL_FREQ_HZ = Fraction("20")
+    GLOBAL_FREQ_HZ = Fraction("40")
     OUTPUT_FILENAME = f"solution_{GLOBAL_FREQ_HZ}hz.bin"
 
     solo = Solo12(visualize = options.visualize)
 
+    # problem = Problem(
+    #     subproblems = [
+    #         Subproblem("jump_fwd", JumpTaskFwd, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False)),
+    #         Subproblem("jump_bwd", JumpTaskBwd, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False)),
+    #     ],
+    #     continuity_info = [
+    #         ContinuityInfo()
+    #     ]
+    # )
+
     problem = Problem(
         subproblems = [
-            Subproblem("jump_fwd", JumpTaskFwd, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False)),
-            Subproblem("jump_bwd", JumpTaskBwd, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False)),
+            Subproblem("launch", BackflipLaunch, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo)),
+            Subproblem("land",   BackflipLand,   GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo)),
         ],
+
         continuity_info = [
-            ContinuityInfo()
+            ContinuityInfo(q = lambda x: switch_mrp_in_q(x))
         ]
     )
 

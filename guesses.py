@@ -25,8 +25,6 @@ class GuessOracle(ABC):
 @dataclass
 # Creates a constantly standing pose:
 class StandingGuess(GuessOracle):
-    switched_mrp: bool   = False
-
     def __post_init__(self):
         # Load pose from pickled closed form solution:
         self.q, self.v, self.τ, self.λ = load_robot_pose(Pose.STANDING_V)
@@ -41,14 +39,8 @@ class StandingGuess(GuessOracle):
     # Provide standing guess. If `switch_mrp`, it switches the floating
     # base MRP to the shadow one, to avoid the 2π singularity:
     def guess(self, _: Fraction) -> KnotVars:
-        q_ret = np.copy(
-            self.q 
-            if not self.switched_mrp
-            else utils.ca_to_np(utils.switch_mrp_in_q(self.q))
-        )
-
         return KnotVars(
-            np.copy(q_ret), np.copy(self.v), np.zeros(self.v.shape),
+            np.copy(self.q), np.copy(self.v), np.zeros(self.v.shape),
             np.copy(self.τ), np.copy(self.λ), np.copy(self.f_pos)
         )
 

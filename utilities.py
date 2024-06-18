@@ -19,7 +19,8 @@ MatrixLike = Union[np.ndarray, ca.SX]
 # NOTE: I think liecasadi is switching the MRP as well, a while
 #       after crossing the unit norm sphere.
 def switch_mrp(mrp: ca.SX) -> ca.SX:
-    return -mrp / (mrp.T @ mrp)
+    # The +ε prevents issues with presolving as you can't switch the (0, 0, 0) MRP:
+    return -mrp / (mrp.T @ mrp + 1e-8)
 
 # Helper function to switch the MRP part of a full state vector:
 def switch_mrp_in_q(q_mrp: ca.SX) -> ca.SX:

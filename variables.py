@@ -1,4 +1,3 @@
-from itertools import chain
 from typing import TypeVar, Generic
 from dataclasses import dataclass, field
 
@@ -39,6 +38,9 @@ class CollocationVars(Generic[T]):
     # This appends a single knot's variables to the lists.
     # NOTE: Slack variables need to be set separately.
     def append_knot(self, kvars: KnotVars) -> None:
+        if len(self.q_k) >= self.n_knots:
+            raise RuntimeError("Cannot add more variables than the predefined knot count!")
+        
         self.q_k.append(kvars.q); self.v_k.append(kvars.v)
         self.a_k.append(kvars.a); self.τ_k.append(kvars.τ)
         self.λ_k.append(kvars.λ); self.f_pos_k.append(kvars.f_pos)
@@ -62,7 +64,7 @@ class CollocationVars(Generic[T]):
     @staticmethod
     def unflatten(n_knots: int, vec: T = None):
         assert vec.shape[1] == 1
-        dvars = CollocationVars(n_knots = n_knots)
+        dvars = CollocationVars[T](n_knots = n_knots)
 
         # Unflatten trajectory variables:
         o, sz = 0, 18
@@ -75,7 +77,7 @@ class CollocationVars(Generic[T]):
         dvars.a_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
 
         o, sz = o + sz * n_knots, 12
-        dvars.tau_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
+        dvars.τ_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
 
         o, sz = o + sz * n_knots, 4 * 3
         dvars.λ_k = unflatten_mats(vec[o : o + n_knots * sz], (4, 3))

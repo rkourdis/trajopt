@@ -6,8 +6,9 @@ import numpy as np
 
 from constraints import *
 from utilities import flatten_mats
-from continuity import ContinuityInfo
 from transcription import Subproblem
+from continuity import ContinuityInfo
+from variables import CollocationVars
 
 @dataclass
 class Problem:
@@ -133,8 +134,39 @@ class Problem:
         g_vars = [sp.create_guess().flatten() for sp in self.subproblems]
         return np.vstack(g_vars)
 
-    def load_solution(self) -> None:
-        # TODO: Return a stitched trajectory, skipping intermediate knots.
-        #       Slack variables are not needed for now.
-        raise NotImplementedError
+    def load_solution(self, vec: np.ndarray) -> CollocationVars[np.ndarray]:
+        # Make sure subproblems are transcribed first. This is because the number of
+        # slack variables is not known in advance, for now.
+        assert self.transcribed, "All subproblems must be transcribed before loading a solution."
+        
+        # Total knot count should be the sum of all subproblem knot counts,
+        # excluding duplicated points at the end of each subproblem (excl.
+        # the last):
+        total_knot_count = sum(s.n_knots for s in self.subproblems) - \
+                                (len(self.subproblems) - 1)
+        
+        # We'll load a trajectory for each subproblem and combine all
+        # knots into a global problem-wide trajectory. Since the first
+        # knot of every subproblem represents the same time as the
+        # last knot of its previous subproblem, we won't keep it.
+        #
+        # FIXME: This assumes that each subproblem uses the same Δt.
+        #        That won't allow for accurate visualization!
+        global_solution = CollocationVars[np.ndarray](total_knot_count)
+        cur_vec_offset = 0
 
+        for s_idx, subp in enumerate(self.subproblems):
+            # Use transcription to obtain variable count:
+            var_count = subp.dvars.flatten().shape[0]
+            subp_vec = vec[cur_vec_offset : cur_vec_offset + var_count]
+
+            # Unflatten variables as per the problem description:
+            subp_soln = subp.load_solution(subp_vec)
+
+            # Skip first knot for all subproblems except the first:
+            for k in range(0 if s_idx == 0 else 1, subp.n_knots):
+                global_solution.append_knot(subp_soln.get_vars_at_knot(k))
+
+            cur_vec_offset += var_count
+        
+        return global_solution

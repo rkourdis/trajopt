@@ -235,11 +235,13 @@ class Subproblem:
 
         return guess
 
-    # Loads a solution to this subproblem from flattened numeric vectors:    
+    # Loads a solution to this subproblem from a numeric column vector:    
     def load_solution(
             self,
-            soln_vec: np.ndarray,
+            vec: np.ndarray,
         ) -> CollocationVars[np.ndarray]:
 
-        return CollocationVars.unflatten(self.n_knots, soln_vec)
+        return CollocationVars[np.ndarray].unflatten(
+            self.n_knots, vec
+        )
     

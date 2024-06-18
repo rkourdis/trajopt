@@ -9,6 +9,7 @@ from robot import Solo12
 from problem import Problem
 from guesses import StandingGuess
 from transcription import Subproblem
+from visualization import visualise_solution
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -16,22 +17,25 @@ if __name__ == "__main__":
     options = parser.parse_args()
 
     GLOBAL_FREQ_HZ = Fraction("20")
-    # OUTPUT_FILENAME = f"{TASK.name}_{FREQ_HZ}hz_{int(TASK.duration*1e+3)}ms.bin"
+    OUTPUT_FILENAME = f"solution_{GLOBAL_FREQ_HZ}hz.bin"
 
     solo = Solo12(visualize = options.visualize)
 
     problem = Problem(
         subproblems = [
-            Subproblem("jump", JumpTask, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo, switched_mrp = False))
+            Subproblem(
+                "jump", JumpTask, GLOBAL_FREQ_HZ, solo,
+                StandingGuess(robot = solo, switched_mrp = False)
+            )
         ]
     )
 
-    # if options.visualise:
-    #     visualise_solution(OUTPUT_FILENAME, N_KNOTS, DELTA_T, robot)
-    #     exit()
-
     problem.transcribe()
-    
+
+    if options.visualize:
+        visualise_solution(OUTPUT_FILENAME, problem, solo)
+        exit()
+
     # NOTE: https://or.stackexchange.com/questions/3128/can-tuning-knitro-solver-considerably-make-a-difference
     knitro_settings = {
         # "hessopt":          knitro.KN_HESSOPT_LBFGS,
@@ -74,6 +78,6 @@ if __name__ == "__main__":
         lbg = c_lb, ubg = c_ub,
     )
 
-    with open("test.bin", "wb") as wf:
+    with open(OUTPUT_FILENAME, "wb") as wf:
         pickle.dump(soln, wf)
     

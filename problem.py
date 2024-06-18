@@ -130,7 +130,7 @@ class Problem:
         )
     
     def guess(self) -> np.ndarray:
-        g_vars = [sp.create_guess() for sp in self.subproblems]
+        g_vars = [sp.create_guess().flatten() for sp in self.subproblems]
         return np.vstack(g_vars)
 
     def load_solution(self) -> None:

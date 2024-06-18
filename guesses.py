@@ -34,7 +34,9 @@ class StandingGuess(GuessOracle):
         # Create numerical instance of FK to calculate feet positions:
         q_sym = ca.SX.sym("q_sym", self.q.shape)
         ad_fk = ADFootholdKinematics(self.robot)
-        self.num_fk = ca.Function("num_fk", [q_sym], [ad_fk(q_sym)])
+        num_fk = ca.Function("num_fk", [q_sym], [ad_fk(q_sym)])
+
+        self.f_pos = utils.ca_to_np(num_fk(self.q))
 
     # Provide standing guess. If `switch_mrp`, it switches the floating
     # base MRP to the shadow one, to avoid the 2π singularity:
@@ -47,7 +49,7 @@ class StandingGuess(GuessOracle):
 
         return KnotVars(
             np.copy(q_ret), np.copy(self.v), np.zeros(self.v.shape),
-            np.copy(self.τ), np.copy(self.λ), self.num_fk(self.q)
+            np.copy(self.τ), np.copy(self.λ), np.copy(self.f_pos)
         )
 
 @dataclass

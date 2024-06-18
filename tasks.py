@@ -13,9 +13,6 @@ from poses import Pose, load_robot_pose
 
 @dataclass
 class Task:
-    # Task name:
-    name: str
-
     # Overall trajectory duration (sec):
     duration: Fraction
 

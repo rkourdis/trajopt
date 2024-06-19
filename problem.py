@@ -183,7 +183,7 @@ class Problem:
     
     @staticmethod
     # Utility method to load subproblem trajectories from a problem solution:
-    def load_solution(soln: Solution) -> list[CollocationVars[np.ndarray]]:
+    def load_trajectories(soln: Solution) -> list[CollocationVars[np.ndarray]]:
         vec = soln.solver_output["x"]
         subp_solns, cur_vec_offset = [], 0
 
@@ -200,3 +200,18 @@ class Problem:
             cur_vec_offset += var_count
 
         return subp_solns
+    
+    @staticmethod
+    # Utility method to load a single subproblem's trajectory from a solution:
+    def load_subtrajectory(soln: Solution, subproblem_name: str) -> CollocationVars[np.ndarray]:
+        trajectories = Problem.load_trajectories(soln)
+
+        # Find the correct subproblem index:
+        idx, _ = next(
+            filter(
+                lambda elem: elem[1].subproblem_name == subproblem_name,
+                enumerate(soln.transcription_infos)
+            )
+        )
+
+        return trajectories[idx]

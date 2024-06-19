@@ -10,7 +10,7 @@ def visualise_solution(filename: str, solo: Solo12):
         soln: Solution = pickle.load(rf)
 
     assert isinstance(soln, Solution)
-    sub_trajectories = Problem.load_solution(soln)
+    sub_trajectories = Problem.load_trajectories(soln)
     g_traj = Problem.stitch_trajectories(sub_trajectories)
 
     input(f"Press ENTER to start playback ({g_traj.n_knots} knots)")

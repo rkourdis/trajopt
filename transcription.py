@@ -271,7 +271,7 @@ class Subproblem:
 
         for k in range(self.n_knots):
             guess.append_knot(
-                kvars = self.guess_oracle.guess(self.dt * k),
+                kvars = self.guess_oracle.guess(k),
                 duration = float(self.dt)
             )
 

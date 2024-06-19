@@ -64,9 +64,6 @@ class Subproblem:
             # Forward dynamics accelerations:
             Constraint(kv.a - self.fd(kv.q, kv.v, kv.τ, kv.λ)),
 
-            # Robot torso cannot go below the ground:
-            Bound(kv.q[2], lb = self.robot.floor_z + 0.08, ub = ca.inf),
-
             # Joint torque limits in N*m:
             Bound(kv.τ, lb = -1.9, ub = 1.9),
     
@@ -198,16 +195,21 @@ class Subproblem:
             if k > 0:
                 self._add_integration_constraints(k)
 
-        # Add task-specific trajectory constraints:
-        for t, get_constr in self.task.task_constraints:
-            if t < 0 or t > self.task.duration:
-                raise ValueError(f"Task constraint time ({t}) is not in [0.0, {self.task.duration}].")
-            
-            if t % self.dt != 0:
-                raise ValueError(f"Task constraint time ({t}) is not divisible by Δt ({self.dt}).")
+        # Add task-specific trajectory constraints. A constraint might
+        # hold for a range of knots:
+        for t_period, get_constr in self.task.task_constraints:
+            t_s = t_period.start
+            t_e = t_period.end if t_period.end != None else self.task.duration
 
-            kvars = self.dvars.get_vars_at_knot(int(t / self.dt))
-            self.constraints.extend(get_constr(kvars, self.robot))
+            if t_s < 0 or t_e > self.task.duration:
+                raise ValueError(f"Task constraint period ([{t_s}, {t_e}]) is not in [0.0, {self.task.duration}].")
+            
+            assert t_s % self.dt == 0, f"Constraint start time ({t_s}) must be divisible by Δt ({self.dt})."
+            assert t_e % self.dt == 0, f"Constraint end time ({t_e}) must be divisible by Δt ({self.dt})."
+
+            for k in range(int(t_s / self.dt), int(t_e / self.dt) + 1):
+                kvars = self.dvars.get_vars_at_knot(k)
+                self.constraints.extend(get_constr(kvars, self.robot))
 
         # Create expression for the scalar problem objective:
         self.objective = ca.SX.zeros(1)

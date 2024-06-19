@@ -47,22 +47,6 @@ def q_mrp_to_quat(q_mrp: ca.SX) -> ca.SX:
 def q_quat_to_mrp(q_quat: ca.SX) -> ca.SX:
     return ca.vertcat(q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:])
 
-"""
-# Given a dictionary of {"JOINT_NAME": angle} pairs, return a state vector
-# with all joints at the neutral configuration except those in the dictionary,
-# which will be set at the provided angles.
-# The returned state expresses the floating base orientation using MRP.
-def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float]) -> np.ndarray:
-    q_quat = pin.neutral(robot.model)
-
-    for j_name, angle in joint_angles.items():
-        idx = robot.model.getJointId(j_name)
-        q_quat[robot.model.joints[idx].idx_q] = angle
-
-    q_mrp = np.concatenate((q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:]))
-    return np.expand_dims(q_mrp, axis = -1)     # 18x1
-"""
-
 # Custom state integration function. This is to avoid 
 # numerical issues with pin3's integrate during Hessian calculation.
 # Please see: https://github.com/stack-of-tasks/pinocchio/issues/2050

@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     problem = Problem(
         subproblems = [
-            Subproblem("jump", JumpTaskInPlace, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo))
+            Subproblem("stand", GetUpTask, GLOBAL_FREQ_HZ, solo, StandingGuess(robot = solo))
         ]
     )
 

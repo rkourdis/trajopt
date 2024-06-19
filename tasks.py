@@ -1,15 +1,36 @@
-from typing import Callable
-from fractions import Fraction
 from dataclasses import dataclass
+from typing import Callable, Optional
+
+from fractions import Fraction
+F = Fraction
 
 import casadi as ca
 import intervaltree as ivt
 
 from constraints import *
 from robot import Solo12
+from configurations import *
 from utilities import frac_ε
 from variables import KnotVars
 from poses import Pose, load_robot_pose
+
+@dataclass()
+class TimePeriod:
+    # Period between two times, inclusive of end.
+    # Unbounded if end == None.
+    start:  Fraction
+    end:    Optional[Fraction] = None
+
+    def __post_init__(self):
+        assert self.start >= 0, "Start time must be >= 0!"
+
+        if self.end != None:
+            assert self.start <= self.end, "End time must be >= start time!"
+
+    @staticmethod
+    def point(t: Fraction):
+        # This will be used for point constraints:
+        return TimePeriod(t, t)
 
 @dataclass
 class Task:
@@ -29,32 +50,98 @@ class Task:
     # and the robot model:
     task_constraints: list[
         tuple[
-            Fraction,
+            TimePeriod,
             Callable[[KnotVars[ca.SX], Solo12], list[ConstraintType]]
         ]
     ]
 
-JumpTaskInPlace: Task = Task(
-    duration = Fraction("1.2"),
-    traj_error = lambda t, kvars:
-        # Minimize torque during launch and Z contact force when landing:
-        ca.norm_2(kvars.τ if t < 0.6 else kvars.λ[:, 2]),
+GetUpTask: Task = Task(
+    duration = F("0.8"),
+    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        foot: ivt.IntervalTree([ivt.Interval(0.0, 0.3 + frac_ε), ivt.Interval(0.6, 1.2 + frac_ε)])
+        foot: ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.8") + frac_ε)])
         for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
     },
 
     task_constraints = [
         (
-            Fraction("0.0"),
+            TimePeriod.point(F("0.0")),
+
+            lambda kv, solo: [
+                # We'll start all joints in the folded configuration. We don't constrain
+                # the robot's Z because if the feet are set on the floor by the contact
+                # constraints, there's only one solution for the Z (and that's < 0).
+                #
+                # NOTE: In other tasks starting with a V configuration, we do add the Z
+                #       constraint which might be overconstraining the problem, even though
+                #       it will automatically hold as we found FLOOR_Z via FK a priori.
+                Constraint(kv.q[3:] - create_state_vector(solo.robot, FOLDED_JOINT_MAP)[3:]),
+
+                # We'll add constraints for torso XY though:
+                Bound(kv.q[:2]),
+
+                # No velocity at the beginning:
+                Bound(kv.v),
+            ]
+        ),
+        (
+            TimePeriod.point(F("0.8")),
+
+            lambda kv, solo: [
+                # We _could_ constrain the entire q here, but we'll avoid it for the
+                # above reason:
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
+                Bound(kv.q[:2]),
+                Bound(kv.v)
+            ]
+        ),
+        (
+            TimePeriod(F("0.0"), end = None),
+            lambda kv, solo: [
+                # Robot torso cannot go downwards during the entire trajectory.
+                # This is to avoid solutions where the robot initially falls
+                # to conserve torque:
+                Bound(kv.v[2], lb = 0.0, ub = ca.inf)
+            ]
+        )
+
+    ],
+)
+
+# TODO: Add the following constraint to all tasks below, for all times:
+"""
+# Robot torso cannot go below the ground:
+Bound(kv.q[2], lb = self.robot.floor_z + 0.08, ub = ca.inf),
+"""
+
+JumpTaskInPlace: Task = Task(
+    duration = F("1.2"),
+    traj_error = lambda t, kvars:
+        # Minimize torque during launch and Z contact force when landing:
+        ca.norm_2(kvars.τ if t < 0.6 else kvars.λ[:, 2]),
+
+    contact_periods = {
+        foot: ivt.IntervalTree([
+            ivt.Interval(F("0.0"), F("0.3") + frac_ε),
+            ivt.Interval(F("0.6"), F("1.2") + frac_ε)
+        ])
+
+        for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+    },
+
+    task_constraints = [
+        (
+            TimePeriod.point(F("0.0")),
+
             lambda kv, solo: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
                 Bound(kv.v)
             ]
         ),
         (
-            Fraction("1.2"),
+            TimePeriod.point(F("1.2")),
+
             lambda kv, solo: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
                 Bound(kv.v)
@@ -64,14 +151,15 @@ JumpTaskInPlace: Task = Task(
 )
 
 JumpTaskFwd: Task = Task(
-    duration = Fraction("1.0"),
+    duration = F("1.0"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
         foot: ivt.IntervalTree([
             # Add ε at the end of the intervals because .overlaps() is
             # not inclusive of the end time:
-            ivt.Interval(0.0, 0.3 + frac_ε), ivt.Interval(0.6, 1.0 + frac_ε)
+            ivt.Interval(F("0.0"), F("0.3") + frac_ε),
+            ivt.Interval(F("0.6"), F("1.0") + frac_ε)
         ])
 
         for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
@@ -79,7 +167,7 @@ JumpTaskFwd: Task = Task(
 
     task_constraints = [
         (
-            Fraction("0.0"), 
+            TimePeriod.point(F("0.0")), 
 
             lambda kv, solo: [
                 # Feet in standing V at the beginning:
@@ -90,7 +178,7 @@ JumpTaskFwd: Task = Task(
             ]
         ),
         (
-            Fraction("1.0"),
+            TimePeriod.point(F("1.0")),
 
             lambda kv, solo: [
                 # Torso has moved forward:
@@ -108,18 +196,24 @@ JumpTaskFwd: Task = Task(
 )
 
 JumpTaskBwd: Task = Task(
-    duration = Fraction("1.0"),
+    duration = F("1.0"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        foot: ivt.IntervalTree([ivt.Interval(0.0, 0.3 + frac_ε), ivt.Interval(0.6, 1.0 + frac_ε)])
+        foot: ivt.IntervalTree([
+            ivt.Interval(F("0.0"), F("0.3") + frac_ε),
+            ivt.Interval(F("0.6"), F("1.0") + frac_ε)
+        ])
+
         for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
     },
 
     task_constraints = [
         # Initial constraints will be added for subproblem continuity. Add final only:
         (
-            Fraction("1.0"), lambda kv, solo: [
+            TimePeriod.point(F("1.0")),
+            
+            lambda kv, solo: [
                 # Robot has gone back to original configuration:
                 Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
                 
@@ -131,19 +225,19 @@ JumpTaskBwd: Task = Task(
 )
 
 BackflipLaunch: Task = Task(
-    duration = Fraction("0.8"),
+    duration = F("0.8"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.5 + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.5 + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.55 + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(0.0, 0.55 + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.5") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.5") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
     },
 
     task_constraints = [
         (
-            Fraction("0.0"), 
+            TimePeriod.point(F("0.0")), 
 
             lambda kv, solo: [
                 # Feet in standing V at the beginning:
@@ -155,7 +249,7 @@ BackflipLaunch: Task = Task(
         ),
 
         (
-            Fraction("0.8"),
+            TimePeriod.point(F("0.8")),
 
             lambda kv, solo: [
                 # Torso has gone backwards and is at a height:
@@ -175,19 +269,19 @@ BackflipLaunch: Task = Task(
 
 
 BackflipLand: Task = Task(
-    duration = Fraction("0.8"),
+    duration = F("0.8"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(0.3, 0.8 + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(0.3, 0.8 + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(0.35, 0.8 + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(0.35, 0.8 + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.8") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.8") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.8") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.8") + frac_ε)]),
     },
 
     task_constraints = [
         (
-            Fraction("0.8"),
+            TimePeriod.point(F("0.8")),
 
             lambda kv, solo: [
                 # Robot orientation and joints are back to original configuration:

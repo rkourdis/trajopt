@@ -34,6 +34,35 @@ class Task:
         ]
     ]
 
+JumpTaskInPlace: Task = Task(
+    duration = Fraction("1.2"),
+    traj_error = lambda t, kvars:
+        # Minimize torque during launch and Z contact force when landing:
+        ca.norm_2(kvars.τ if t < 0.6 else kvars.λ[:, 2]),
+
+    contact_periods = {
+        foot: ivt.IntervalTree([ivt.Interval(0.0, 0.3 + frac_ε), ivt.Interval(0.6, 1.2 + frac_ε)])
+        for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+    },
+
+    task_constraints = [
+        (
+            Fraction("0.0"),
+            lambda kv, solo: [
+                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Bound(kv.v)
+            ]
+        ),
+        (
+            Fraction("1.2"),
+            lambda kv, solo: [
+                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Bound(kv.v)
+            ]
+        )
+    ],
+)
+
 JumpTaskFwd: Task = Task(
     duration = Fraction("1.0"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),

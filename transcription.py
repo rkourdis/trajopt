@@ -1,3 +1,4 @@
+from typing import Optional
 from fractions import Fraction
 from dataclasses import dataclass, field
 
@@ -13,6 +14,27 @@ from utilities import integrate_state
 from dynamics import ADForwardDynamics
 from kinematics import ADFootholdKinematics
 
+@dataclass(frozen = True)
+# Struct that holds information about a transcribed subproblem.
+# We'll store this alongside the global solution vector when the
+# optimizer completes so that we can load, visualize and execute a
+# solution without needing to transcribe the exact same problem again. 
+class TranscriptionInfo:
+    subproblem_name: str
+    
+    # The number of decision variables per knot should be constant and
+    # not depend on the task being solved (excl. slack variables):
+    n_knots: int
+
+    # Discretization Δt, for trajectory execution and visualization:
+    dt: float
+
+    # Slack variable count (at the end of the variable vector):
+    slack_var_count: int
+
+    # Other auxiliary info:
+    description: Optional[str] = None
+
 @dataclass
 class Subproblem:
     name:           str
@@ -26,7 +48,8 @@ class Subproblem:
     objective:      ca.SX                    = field(init = False)
     constraints:    list[ConstraintType]     = field(default_factory = list, init = False)
 
-    transcribed:    bool                     = field(default = False, init = False)
+    transcribed:        bool                 = field(default = False, init = False)
+    transcription_info: TranscriptionInfo    = field(default = None, init = False)
 
     def __post_init__(self):
         self.dt = 1 / self.freq_hz
@@ -36,7 +59,7 @@ class Subproblem:
 
             # TODO: Test this!
             raise ValueError(
-                f"Make sure task duration ({self.task.duration})s is divisible by Δt ({self.dt}s). " + \
+                f"Make sure task duration ({self.task.duration}s) is divisible by Δt ({self.dt}s). " + \
                 f"Closest are: {floor_k * self.dt}s or {(floor_k + 1) * self.dt}s."
             )
 
@@ -55,6 +78,8 @@ class Subproblem:
             self.dvars.λ_k.append(ca.SX.sym(f"{self.name}_λ_{k}", len(self.robot.feet), 3))          # 4  x 3
             self.dvars.f_pos_k.append(ca.SX.sym(f"{self.name}_f_pos_{k}", len(self.robot.feet), 3))  # 4  x 3
 
+            self.dvars.knot_duration.append(float(self.dt))     # Same Δt for all knots
+
     # Pointwise variable constraints at each knot (dynamics, kinematics, limits):
     #############################################################################
     def _add_pointwise_constraints(self, k: int) -> None:
@@ -65,7 +90,7 @@ class Subproblem:
             Constraint(kv.a - self.fd(kv.q, kv.v, kv.τ, kv.λ)),
 
             # Joint torque limits in N*m:
-            Bound(kv.τ, lb = -1.9, ub = 1.9),
+            Bound(kv.τ, lb = -self.robot.τ_max, ub = self.robot.τ_max),
     
             # Forward foothold kinematics:
             Constraint(kv.f_pos - self.fk(kv.q))
@@ -222,28 +247,37 @@ class Subproblem:
             # We average the trajectory error over all knots:
             weight = 1.0 / self.n_knots
             self.objective += weight * err
-            
+        
+        # Save transcription information to be stored in the solution file:
+        self.transcription_info = TranscriptionInfo(
+            subproblem_name     = self.name,
+            n_knots             = self.n_knots,
+            dt                  = float(self.dt),
+
+            slack_var_count     = sum(
+                                    sv.shape[0] * sv.shape[1]
+                                    for sv in self.dvars.slack_vars
+                                  ),
+
+            description         = f"Τ={float(self.task.duration)}, " + 
+                                  f"μ={self.robot.μ}, " +
+                                  f"τ_max={self.robot.τ_max}"
+        )
+
         self.transcribed = True
 
     def create_guess(self) -> CollocationVars[np.ndarray]:
         guess = CollocationVars[np.ndarray](self.n_knots)
 
         for k in range(self.n_knots):
-            guess.append_knot(self.guess_oracle.guess(self.dt * k))
+            guess.append_knot(
+                kvars = self.guess_oracle.guess(self.dt * k),
+                duration = float(self.dt)
+            )
 
         # Initialize all slack variables to zero:
         for sv in self.dvars.slack_vars:
             guess.slack_vars.append(np.zeros(sv.shape))
 
         return guess
-
-    # Loads a solution to this subproblem from a numeric column vector:    
-    def load_solution(
-            self,
-            vec: np.ndarray,
-        ) -> CollocationVars[np.ndarray]:
-
-        return CollocationVars[np.ndarray].unflatten(
-            self.n_knots, vec
-        )
     

@@ -1,18 +1,21 @@
+import time
 import pickle
 
 from robot import Solo12
-from problem import Problem
+from problem import Problem, Solution
 from utilities import ca_to_np, q_mrp_to_quat
 
-def visualise_solution(filename: str, problem: Problem, solo: Solo12):
+def visualise_solution(filename: str, solo: Solo12):
     with open(filename, "rb") as rf:
-        soln = pickle.load(rf)
+        soln: Solution = pickle.load(rf)
 
-    vars = ca_to_np(soln["x"])
-    traj = problem.load_solution(vars)
+    assert isinstance(soln, Solution)
+    sub_trajectories = Problem.load_solution(soln)
+    g_traj = Problem.stitch_trajectories(sub_trajectories)
 
-    for k, q_mrp in enumerate(traj.q_k):
-        print(f"Knot: {k}")
+    input(f"Press ENTER to start playback ({g_traj.n_knots} knots)")
+
+    for k, (q_mrp, dt) in enumerate(zip(g_traj.q_k, g_traj.knot_duration)):
+        print(f"Knot: {k}, duration: {int(dt * 1e+3)}ms")
         solo.robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
-
-        input("Press ENTER to continue to next knot.")
+        time.sleep(dt)

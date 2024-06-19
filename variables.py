@@ -1,5 +1,5 @@
-from typing import TypeVar, Generic
 from dataclasses import dataclass, field
+from typing import TypeVar, Generic, Any
 
 from utilities import flatten_mats, unflatten_mats
 
@@ -25,6 +25,10 @@ class CollocationVars(Generic[T]):
     f_pos_k:    list[T] = field(default_factory=list)  # 4x3
 
     slack_vars: list[T] = field(default_factory=list)  # Problem-dependent
+    
+    # Time duration of each knot (Δt). Useful when stitching trajectories
+    # discretized with different frequencies:
+    knot_duration: list[float] = field(default_factory=list, init=False)
 
     # Flatten variable set into a column vector. Slack variables
     # are appended at the end of the vector:
@@ -37,14 +41,16 @@ class CollocationVars(Generic[T]):
 
     # This appends a single knot's variables to the lists.
     # NOTE: Slack variables need to be set separately.
-    def append_knot(self, kvars: KnotVars) -> None:
+    def append_knot(self, kvars: KnotVars, duration: float) -> None:
         if len(self.q_k) >= self.n_knots:
             raise RuntimeError("Cannot add more variables than the predefined knot count!")
-        
+
+        self.knot_duration.append(duration)
+
         self.q_k.append(kvars.q); self.v_k.append(kvars.v)
         self.a_k.append(kvars.a); self.τ_k.append(kvars.τ)
         self.λ_k.append(kvars.λ); self.f_pos_k.append(kvars.f_pos)
-        
+
     # Return variable set for a single knot (excl. slack):
     def get_vars_at_knot(self, k: int) -> KnotVars[T]:
         if k >= len(self.q_k):
@@ -55,16 +61,20 @@ class CollocationVars(Generic[T]):
             self.τ_k[k], self.λ_k[k], self.f_pos_k[k]
         )
     
-    # Interpolate variable set by a simple repetition of knots:
     @staticmethod
+    # Interpolate variable set by a simple repetition of knots:
     def interpolate(self, target_knots: int):
         raise NotImplementedError
     
-    # Load trajectory and slack variables from column vectors:
     @staticmethod
-    def unflatten(n_knots: int, vec: T = None):
+    # Load trajectory and slack variables from column vectors.
+    # We assume that all knots are of equal time duration.
+    # Return the variables as well as the total variable count:
+    def unflatten(n_knots: int, slack_var_count: int, duration: float, vec: T) -> tuple[Any, int]:
         assert vec.shape[1] == 1
+
         dvars = CollocationVars[T](n_knots = n_knots)
+        dvars.knot_duration = [duration] * n_knots
 
         # Unflatten trajectory variables:
         o, sz = 0, 18
@@ -85,6 +95,9 @@ class CollocationVars(Generic[T]):
         o, sz = o + sz * n_knots, 4 * 3
         dvars.f_pos_k = unflatten_mats(vec[o : o + n_knots * sz], (4, 3))
 
-        dvars.slack_vars = vec[o:]
+        # Load slack variables as a single column vector:
+        o += sz * n_knots
+        dvars.slack_vars = [ vec[o : o + slack_var_count] ]
 
-        return dvars
+        o += slack_var_count
+        return dvars, o

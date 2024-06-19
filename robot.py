@@ -57,5 +57,8 @@ class Solo12:
         # Skip 'universe' and 'root_joint' as they're not actuated:
         self.actuated_joints = [j.id for j in self.robot.model.joints[2:]]
 
-        # Set the coefficient of friction between the legs and the ground:
+        # Coefficient of friction between the legs and the ground:
         self.μ = 0.6
+
+        # Maximum absolute torque for all joints (N*m):
+        self.τ_max = 1.9

@@ -6,9 +6,18 @@ import numpy as np
 
 from constraints import *
 from utilities import flatten_mats
-from transcription import Subproblem
 from continuity import ContinuityInfo
 from variables import CollocationVars
+from transcription import Subproblem, TranscriptionInfo
+
+@dataclass(frozen = True)
+class Solution:
+    # Solver output containing the objective value, decision variable
+    # assignments and Lagrange multipliers:
+    solver_output:          dict
+
+    # Transcription information for all subproblems:
+    transcription_infos:    list[TranscriptionInfo]
 
 @dataclass
 class Problem:
@@ -141,39 +150,53 @@ class Problem:
         g_vars = [sp.create_guess().flatten() for sp in self.subproblems]
         return np.vstack(g_vars)
 
-    def load_solution(self, vec: np.ndarray) -> CollocationVars[np.ndarray]:
-        # Make sure subproblems are transcribed first. This is because the number of
-        # slack variables is not known in advance, for now.
-        assert self.transcribed, "All subproblems must be transcribed before loading a solution."
-        
+    @staticmethod
+    # Utility method to combine trajectories from multiple subproblems into
+    # a single trajectory. This is useful when loading a solution to a problem
+    # composed of multiple subproblems.
+    # The last knot of every subproblem (excl. last subproblem) should represent
+    # the same time as the first knot of its subsequent subproblem. Therefore,
+    # the stitched trajectory will drop these initial knots for all subproblems
+    # after the first.
+    def stitch_trajectories(trajectories: list[CollocationVars[np.ndarray]]) \
+        -> CollocationVars[np.ndarray]:
+
         # Total knot count should be the sum of all subproblem knot counts,
-        # excluding duplicated points at the end of each subproblem (excl.
-        # the last):
-        total_knot_count = sum(s.n_knots for s in self.subproblems) - \
-                                (len(self.subproblems) - 1)
-        
-        # We'll load a trajectory for each subproblem and combine all
-        # knots into a global problem-wide trajectory. Since the first
-        # knot of every subproblem represents the same time as the
-        # last knot of its previous subproblem, we won't keep it.
-        #
-        # FIXME: This assumes that each subproblem uses the same Δt.
-        #        That won't allow for accurate visualization!
+        # excluding duplicated points:
+        n_subp = len(trajectories)
+        total_knot_count = sum(t.n_knots for t in trajectories) - (n_subp - 1)
         global_solution = CollocationVars[np.ndarray](total_knot_count)
-        cur_vec_offset = 0
 
-        for s_idx, subp in enumerate(self.subproblems):
-            # Use transcription to obtain variable count:
-            var_count = subp.dvars.flatten().shape[0]
-            subp_vec = vec[cur_vec_offset : cur_vec_offset + var_count]
-
-            # Unflatten variables as per the problem description:
-            subp_soln = subp.load_solution(subp_vec)
-
+        for idx, traj in enumerate(trajectories):
             # Skip first knot for all subproblems except the first:
-            for k in range(0 if s_idx == 0 else 1, subp.n_knots):
-                global_solution.append_knot(subp_soln.get_vars_at_knot(k))
+            for k in range(0 if idx == 0 else 1, traj.n_knots):
+                global_solution.append_knot(
+                    kvars = traj.get_vars_at_knot(k),
+                    duration = traj.knot_duration[k]
+                )
 
-            cur_vec_offset += var_count
-        
+            # Append all slack variables from the subproblem, in case
+            # they're needed:
+            global_solution.slack_vars.extend(traj.slack_vars)        
+
         return global_solution
+    
+    @staticmethod
+    # Utility method to load subproblem trajectories from a problem solution:
+    def load_solution(soln: Solution) -> list[CollocationVars[np.ndarray]]:
+        vec = soln.solver_output["x"]
+        subp_solns, cur_vec_offset = [], 0
+
+        for info in soln.transcription_infos:
+            # Load variables for each subproblem, starting at the
+            # current vector offset:
+            subp_soln, var_count = CollocationVars[np.ndarray].unflatten(
+                info.n_knots, info.slack_var_count, info.dt, vec[cur_vec_offset:]
+            )
+
+            subp_solns.append(subp_soln)
+
+            # Increase offset in the global vector for the next subproblem:
+            cur_vec_offset += var_count
+
+        return subp_solns

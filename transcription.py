@@ -52,6 +52,7 @@ class Subproblem:
     transcription_info: TranscriptionInfo    = field(default = None, init = False)
 
     def __post_init__(self):
+        assert isinstance(self.freq_hz, Fraction)
         self.dt = 1 / self.freq_hz
 
         if self.task.duration % self.dt != 0:

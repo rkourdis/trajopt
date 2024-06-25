@@ -102,29 +102,35 @@ GetUpTask: Task = Task(
                 # Robot torso cannot go downwards during the entire trajectory.
                 # This is to avoid solutions where the robot initially falls
                 # to conserve torque:
-                Bound(kv.v[2], lb = 0.0, ub = ca.inf)
+                Bound(kv.v[2], lb = 0.0, ub = ca.inf),
+
+                # Avoid not straight up solutions - this is to test torque control
+                # with PD for HAAs:
+                Bound(kv.v[3:6], lb = 0.0, ub = 0.0)
             ]
         )
 
     ],
 )
 
-# TODO: Add the following constraint to all tasks below, for all times:
-"""
-# Robot torso cannot go below the ground:
-Bound(kv.q[2], lb = self.robot.floor_z + 0.08, ub = ca.inf),
-"""
-
 JumpTaskInPlace: Task = Task(
     duration = F("1.2"),
-    traj_error = lambda t, kvars:
-        # Minimize torque during launch and Z contact force when landing:
-        ca.norm_2(kvars.τ if t < 0.6 else kvars.λ[:, 2]),
+    traj_error = lambda t, kvars: ca.sqrt(
+            kvars.λ[:, 2].T @ kvars.λ[:, 2]
+            if t >= 0.7 and t <= 0.9 else
+            0.0
+            # (
+            #     kvars.τ.T @ kvars.τ
+            #     if t >= 0.2 and t < 0.7
+            #     else
+            #     0
+            # )
+        ),
 
     contact_periods = {
         foot: ivt.IntervalTree([
             ivt.Interval(F("0.0"), F("0.3") + frac_ε),
-            ivt.Interval(F("0.6"), F("1.2") + frac_ε)
+            ivt.Interval(F("0.7"), F("1.2") + frac_ε)
         ])
 
         for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
@@ -145,6 +151,14 @@ JumpTaskInPlace: Task = Task(
             lambda kv, solo: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
                 Bound(kv.v)
+            ]
+        ),
+        (
+            TimePeriod(start = F("0.0"), end = None),
+
+            lambda kv, solo: [
+                Bound(kv.q[2], lb = solo.floor_z + 0.06, ub = ca.inf),
+                # Bound(kv.v[3:6], lb = -1.0, ub = 1.0)
             ]
         )
     ],
@@ -171,7 +185,8 @@ JumpTaskFwd: Task = Task(
 
             lambda kv, solo: [
                 # Feet in standing V at the beginning:
-                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
 
                 # Robot is static:
                 Bound(kv.v)
@@ -190,6 +205,13 @@ JumpTaskFwd: Task = Task(
 
                 # Robot is static:
                 Bound(kv.v)
+            ]
+        ),
+        (
+            TimePeriod(start = F("0.0"), end = None),
+
+            lambda kv, solo: [
+                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
             ]
         )
     ],
@@ -215,10 +237,18 @@ JumpTaskBwd: Task = Task(
             
             lambda kv, solo: [
                 # Robot has gone back to original configuration:
-                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
                 
                 # Robot is static:
                 Bound(kv.v)
+            ]
+        ),
+        (
+            TimePeriod(start = F("0.0"), end = None),
+
+            lambda kv, solo: [
+                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
             ]
         )
     ],

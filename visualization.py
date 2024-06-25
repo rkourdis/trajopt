@@ -19,3 +19,8 @@ def visualise_solution(filename: str, solo: Solo12):
         print(f"Knot: {k}, duration: {int(dt * 1e+3)}ms")
         solo.robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
         time.sleep(dt)
+
+        print(g_traj.λ_k[k])
+        print(g_traj.τ_k[k])
+        print()
+        input()

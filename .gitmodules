@@ -1,0 +1,3 @@
+[submodule "example-robot-data"]
+	path = example-robot-data
+	url = git@github.com:rkourdis/example-robot-data.git

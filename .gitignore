@@ -1,7 +1,6 @@
 .ipynb_checkpoints/
 resources/
 casadi/
-example-robot-data/*
 .vscode/
 
 __pycache__/

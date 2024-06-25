@@ -45,11 +45,14 @@ if __name__ == "__main__":
 
     problem = Problem(
         subproblems = [
-            Subproblem("jump_1", JumpTaskFwd, Fraction(opts.freq), solo, create_guess("jump_1")),
-            Subproblem("jump_2", JumpTaskBwd, Fraction(opts.freq), solo, create_guess("jump_2")),
+            Subproblem("jump_up", JumpTaskInPlace, Fraction(opts.freq), solo, create_guess("jump_up"))
+            # Subproblem("jump_fwd", JumpTaskFwd, Fraction(opts.freq), solo, create_guess("jump_fwd")),
+            # Subproblem("jump_bwd", JumpTaskBwd, Fraction(opts.freq), solo, create_guess("jump_bwd")),
         ],
 
-        continuity_info = [ContinuityInfo()]
+        continuity_info = [
+            # ContinuityInfo()
+        ]
     )
 
     solution = solve(problem)

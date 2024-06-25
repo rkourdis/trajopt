@@ -61,4 +61,4 @@ class Solo12:
         self.μ = 0.6
 
         # Maximum absolute torque for all joints (N*m):
-        self.τ_max = 1.9
+        self.τ_max = 2.2

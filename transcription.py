@@ -93,6 +93,9 @@ class Subproblem:
             # Joint torque limits in N*m:
             Bound(kv.τ, lb = -self.robot.τ_max, ub = self.robot.τ_max),
     
+            # Torque vector norm limit:
+            Constraint(ca.norm_2(kv.τ), lb = 0.0, ub = self.robot.τ_norm_max),
+
             # Forward foothold kinematics:
             Constraint(kv.f_pos - self.fk(kv.q))
         ])

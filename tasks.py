@@ -255,73 +255,119 @@ JumpTaskBwd: Task = Task(
 )
 
 BackflipLaunch: Task = Task(
-    duration = F("0.8"),
-    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
+    duration = F("1.0"),
+    traj_error = lambda t, kvars: 0.0, #ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.5") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.5") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([
+            ivt.Interval(F("0.0"), F("0.2") + frac_ε),
+            ivt.Interval(F("0.35"), F("0.7") + frac_ε),
+        ]),
+
+        "FL_FOOT": ivt.IntervalTree([
+            ivt.Interval(F("0.0"), F("0.2") + frac_ε),
+            ivt.Interval(F("0.35"), F("0.7") + frac_ε),
+        ]),
+
+        "HR_FOOT": ivt.IntervalTree([
+            ivt.Interval(F("0.0"), F("0.2") + frac_ε),
+            ivt.Interval(F("0.35"), F("0.8") + frac_ε),
+        ]),
+
+        "HL_FOOT": ivt.IntervalTree([
+            ivt.Interval(F("0.0"), F("0.2") + frac_ε),
+            ivt.Interval(F("0.35"), F("0.8") + frac_ε),
+        ]),
     },
 
     task_constraints = [
         (
             TimePeriod.point(F("0.0")), 
-
             lambda kv, solo: [
                 # Feet in standing V at the beginning:
-                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
 
                 # Robot is static:
                 Bound(kv.v)
             ]
         ),
-
         (
-            TimePeriod.point(F("0.8")),
-
+            TimePeriod.point(F("0.35")), 
             lambda kv, solo: [
-                # Torso has gone backwards and is at a height:
-                Bound(kv.q[0], -0.5, -0.1),
-                Bound(kv.q[2], solo.floor_z + 0.2, ca.inf),
-            
-                # Torso has flipped and is still flipping:
-                Bound(kv.q[3], lb = 0.0, ub = 0.0),
+                Bound(kv.v)
+            ]
+        ),
+        (
+            TimePeriod.point(F("1.0")),
+            lambda kv, solo: [
                 Bound(kv.q[4], lb = -1.0, ub = -1.0),
-                Bound(kv.q[5], lb = 0.0, ub = 0.0),
-
                 Bound(kv.v[4], lb = -ca.inf, ub = 0.0),
             ]
-        )
+        ),
+        (
+            TimePeriod(start = F("0.0"), end = None),
+
+            lambda kv, solo: [
+                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
+
+                Bound(kv.q[6 + 1],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FL_HFE
+                Bound(kv.q[6 + 4],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FR_HFE
+                Bound(kv.q[6 + 7],  lb = -np.pi/2, ub = 5 * np.pi / 4),  # HL_HFE
+                Bound(kv.q[6 + 10], lb = -np.pi/2, ub = 5 * np.pi / 4),  # HR_HFE
+            ]
+        ),
+        # (
+        #     TimePeriod(start = F("0.0"), end = F("0.48")),
+
+        #     lambda kv, solo: [
+        #         Bound(kv.q[6 + 1],  lb = 0.0, ub = np.pi/2),  # FL_HFE
+        #         Bound(kv.q[6 + 4],  lb = 0.0, ub = np.pi/2),  # FR_HFE
+
+        #         Bound(kv.q[6 + 2],  lb = -np.pi/2, ub = ca.inf),  # FL_K
+        #         Bound(kv.q[6 + 5],  lb = -np.pi/2, ub = ca.inf),  # FR_K
+        #     ]
+        # )
     ],
 )
 
 
 BackflipLand: Task = Task(
-    duration = F("0.8"),
-    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
+    duration = F("0.6"),
+    traj_error = lambda t, kvars: ca.sqrt(
+        kvars.λ[:, 2].T @ kvars.λ[:, 2]
+        if t >= 0.2 and t <= 0.4 else
+        0.0
+    ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.8") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.8") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.8") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.8") + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.6") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.6") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
     },
 
     task_constraints = [
         (
-            TimePeriod.point(F("0.8")),
+            TimePeriod.point(F("0.6")),
 
             lambda kv, solo: [
-                # Robot orientation and joints are back to original configuration:
-                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
-
-                # The manoeuvre didn't move along the Y axis:
-                Bound(kv.q[1], lb = 0.0, ub = 0.0),
-                
-                # Robot is static:
+                Constraint(kv.q[6:] - load_robot_pose(Pose.STANDING_V)[0][6:]),
                 Bound(kv.v)
+            ]
+        ),
+
+        (
+            TimePeriod(start = F("0.0"), end = None),
+
+            lambda kv, solo: [
+
+                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
+
+                Bound(kv.q[6 + 1],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FL_HFE
+                Bound(kv.q[6 + 4],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FR_HFE
+                Bound(kv.q[6 + 7],  lb = -np.pi/2, ub = 5 * np.pi / 4),  # HL_HFE
+                Bound(kv.q[6 + 10], lb = -np.pi/2, ub = 5 * np.pi / 4),  # HR_HFE
             ]
         )
     ],

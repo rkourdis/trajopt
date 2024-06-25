@@ -58,7 +58,11 @@ class Solo12:
         self.actuated_joints = [j.id for j in self.robot.model.joints[2:]]
 
         # Coefficient of friction between the legs and the ground:
-        self.μ = 0.6
+        self.μ = 0.8
 
         # Maximum absolute torque for all joints (N*m):
         self.τ_max = 2.2
+
+        # Maximum L2 norm of the torque vector - this is to prevent
+        # the power supply tripping:
+        self.τ_norm_max = 6.2

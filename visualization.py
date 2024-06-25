@@ -1,5 +1,6 @@
 import time
 import pickle
+import numpy as np
 
 from robot import Solo12
 from problem import Problem, Solution
@@ -20,7 +21,7 @@ def visualise_solution(filename: str, solo: Solo12):
         solo.robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
         time.sleep(dt)
 
-        print(g_traj.λ_k[k])
-        print(g_traj.τ_k[k])
-        print()
+        print("norm(τ): ", np.linalg.norm(g_traj.τ_k[k], ord = 2))
+        print("FL_K:", g_traj.q_k[k][6 + 2])
+        print("FR_K:", g_traj.q_k[k][6 + 5])
         input()

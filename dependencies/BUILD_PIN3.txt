@@ -80,9 +80,3 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_URDF_SUPPORT=ON -DBUILD_WITH_SD
 make
 sudo make install
 echo 'export PYTHONPATH=/usr/local/lib/python3/dist-packages/:$PYTHONPATH' >> ~/.bashrc && source ~/.bashrc
-
------
-# Patch bug https://github.com/stack-of-tasks/pinocchio/issues/2050
-#cd ../
-# wget https://github.com/modu-robotics/pinocchio/commit/83d044f3e2177e39c301c22c94cbb00d707cd72e.patch
-# git apply 83d044f3e2177e39c301c22c94cbb00d707cd72e.patch

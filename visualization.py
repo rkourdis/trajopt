@@ -22,6 +22,4 @@ def visualise_solution(filename: str, solo: Solo12):
         time.sleep(dt)
 
         print("norm(τ): ", np.linalg.norm(g_traj.τ_k[k], ord = 2))
-        print("FL_K:", g_traj.q_k[k][6 + 2])
-        print("FR_K:", g_traj.q_k[k][6 + 5])
         input()

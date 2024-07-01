@@ -1,5 +1,6 @@
 import pickle
 import argparse
+from pathlib import Path
 
 from tasks import *
 from guesses import *
@@ -63,9 +64,15 @@ if __name__ == "__main__":
     print(f"Saved solution to: {output_filename}")
 
     if opts.hdf5_file:
-        trajectory = Problem.stitch_trajectories(
-            Problem.load_trajectories(solution)
-        )
+        subtrajectories = Problem.load_trajectories(solution)
+        stitched = Problem.stitch_trajectories(subtrajectories)
 
-        export_hdf5(trajectory, opts.hdf5_file)
+        export_hdf5(stitched, opts.hdf5_file)
         print(f"Trajectory exported to: {opts.hdf5_file}")
+
+        for subp, subtraj in zip(problem.subproblems, subtrajectories):
+            base_path = Path(opts.hdf5_file)
+            subtraj_path = f"{base_path.stem}_{subp.name}{base_path.suffix}"
+
+            export_hdf5(subtraj, subtraj_path)
+            print(f"Exported subproblem '{subp.name}' trajectory to: {subtraj_path}")

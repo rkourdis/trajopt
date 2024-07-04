@@ -277,8 +277,8 @@ BackflipLaunch: Task = Task(
                 Bound(kv.v),
 
                 # Front knees not bent outwards for better stability:
-                Bound(kv.q[6 + 2], lb = -ca.inf, ub = 0.),
-                Bound(kv.q[6 + 5], lb = -ca.inf, ub = 0.),
+                Bound(kv.q[solo.q_off("FR_KFE")], lb = -ca.inf, ub = 0.),
+                Bound(kv.q[solo.q_off("FL_KFE")], lb = -ca.inf, ub = 0.),
             ]
         ),
         (
@@ -299,21 +299,21 @@ BackflipLaunch: Task = Task(
             TimePeriod(start = F("0.0"), end = None),
 
             lambda kv, solo: [
-                # Torso always 8cm above the floor:
-                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
+                # Torso always 15cm above the floor:
+                Bound(kv.q[2], lb = solo.floor_z + 0.15, ub = ca.inf),
                 
                 # Rotationally limited joints:
-                Bound(kv.q[6 + 1],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FL_HFE
-                Bound(kv.q[6 + 4],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FR_HFE
-                Bound(kv.q[6 + 7],  lb = -np.pi/2, ub = 5 * np.pi / 4),  # HL_HFE
-                Bound(kv.q[6 + 10], lb = -np.pi/2, ub = 5 * np.pi / 4),  # HR_HFE
+                Bound(kv.q[solo.q_off("FL_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
+                Bound(kv.q[solo.q_off("FR_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
+                Bound(kv.q[solo.q_off("HL_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
+                Bound(kv.q[solo.q_off("HR_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
 
                 # We don't allow hip AAs to deviate too much otherwise the
                 # robot rolls a lot:
-                Bound(kv.q[6 + 0], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
-                Bound(kv.q[6 + 3], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
-                Bound(kv.q[6 + 6], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
-                Bound(kv.q[6 + 9], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
+                Bound(kv.q[solo.q_off("FL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+                Bound(kv.q[solo.q_off("FR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+                Bound(kv.q[solo.q_off("HL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+                Bound(kv.q[solo.q_off("HR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
             ]
         ),
     ],
@@ -350,8 +350,8 @@ BackflipLand: Task = Task(
                 # Torso 20cm above the floor:
                 Bound(kv.q[2], lb = solo.floor_z + 0.2, ub = ca.inf),
 
-                # Torso X hasn't deviated too much after the flip:
-                Bound(kv.q[1], lb = -0.1, ub = 0.1),
+                # Bound(kv.q[0], lb = -0.4, ub = 0.0),
+                # Bound(kv.q[1], lb = -0.1, ub = 0.1),
             ]
         ),
 
@@ -360,16 +360,21 @@ BackflipLand: Task = Task(
 
             lambda kv, solo: [
                 # Rotationally limited joints:
-                Bound(kv.q[6 + 1],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FL_HFE
-                Bound(kv.q[6 + 4],  lb = -5 * np.pi / 4, ub = np.pi/2),  # FR_HFE
-                Bound(kv.q[6 + 7],  lb = -np.pi/2, ub = 5 * np.pi / 4),  # HL_HFE
-                Bound(kv.q[6 + 10], lb = -np.pi/2, ub = 5 * np.pi / 4),  # HR_HFE
+                Bound(kv.q[solo.q_off("FL_HFE")],  lb = -5 * np.pi / 4, ub = np.pi/2),
+                Bound(kv.q[solo.q_off("FR_HFE")],  lb = -5 * np.pi / 4, ub = np.pi/2),
+                Bound(kv.q[solo.q_off("HL_HFE")],  lb = -np.pi/2, ub = 5 * np.pi / 4),
+                Bound(kv.q[solo.q_off("HR_HFE")], lb = -np.pi/2, ub = 5 * np.pi / 4),
 
                 # Same as launch - don't allow hip AAs to deviate too much:
-                Bound(kv.q[6 + 0], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
-                Bound(kv.q[6 + 3], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
-                Bound(kv.q[6 + 6], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
-                Bound(kv.q[6 + 9], lb = -np.deg2rad(20), ub = np.deg2rad(20)),
+                Bound(kv.q[solo.q_off("FL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+                Bound(kv.q[solo.q_off("FR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+                Bound(kv.q[solo.q_off("HL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+                Bound(kv.q[solo.q_off("HR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
+
+                Bound(kv.q[solo.q_off("FL_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
+                Bound(kv.q[solo.q_off("FR_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
+                Bound(kv.q[solo.q_off("HL_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
+                Bound(kv.q[solo.q_off("HR_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
             ]
         ),
         (
@@ -377,14 +382,21 @@ BackflipLand: Task = Task(
 
             lambda kv, solo: [
                 # Robot isn't too low when landing:
-                Bound(kv.q[2], lb = solo.floor_z + 0.1, ub = ca.inf),
+                Bound(kv.q[2], lb = solo.floor_z + 0.18, ub = ca.inf),
 
-                # Land with the knees bent inwards - these have been found
-                # through trial and error:
-                Bound(kv.q[6 + 2], lb = -np.deg2rad(120), ub = -np.deg2rad(45)),
-                Bound(kv.q[6 + 5], lb = -np.deg2rad(120), ub = -np.deg2rad(45)),
-                Bound(kv.q[6 + 1], lb = 0.0, ub = np.deg2rad(45)),
-                Bound(kv.q[6 + 4], lb = 0.0, ub = np.deg2rad(45)),
+                # # Land with the knees bent inwards - these have been found
+                # # through trial and error:
+                # Bound(kv.q[6 + 2], lb = -np.deg2rad(120), ub = -np.deg2rad(45)),
+                # Bound(kv.q[6 + 5], lb = -np.deg2rad(120), ub = -np.deg2rad(45)),
+                # Bound(kv.q[6 + 1], lb = 0.0, ub = np.deg2rad(45)),
+                # Bound(kv.q[6 + 4], lb = 0.0, ub = np.deg2rad(45)),
+            ]
+        ),
+        (
+            TimePeriod(start = F("0.0"), end = F("0.15")),
+
+            lambda kv, solo: [
+                Bound(kv.v[6:],  lb = -2, ub = +2),
             ]
         ),
         (
@@ -393,7 +405,12 @@ BackflipLand: Task = Task(
             lambda kv, solo: [
                 # The robot should not land very vertically - the front
                 # might go under the floor otherwise:
-                Bound(kv.q[4],  lb = -ca.inf, ub = 0.10),
+                Bound(kv.q[4],  lb = -ca.inf, ub = 0.04),
+
+                # Bound(kv.q[2], lb = solo.floor_z + 0.25, ub = ca.inf),
+
+                Bound(kv.q[solo.q_off("FL_KFE")], lb = -ca.inf, ub = -np.deg2rad(90)),
+                Bound(kv.q[solo.q_off("FR_KFE")], lb = -ca.inf, ub = -np.deg2rad(90)),
             ]
         ),
     ],

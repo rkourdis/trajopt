@@ -254,15 +254,24 @@ JumpTaskBwd: Task = Task(
     ],
 )
 
+left_right_symmetry = lambda kv, solo: [
+    Constraint(kv.q[solo.q_off("FR_KFE")] - kv.q[solo.q_off("FL_KFE")]),
+    Constraint(kv.q[solo.q_off("FR_HFE")] - kv.q[solo.q_off("FL_HFE")]),
+    Constraint(kv.q[solo.q_off("FR_HAA")] - kv.q[solo.q_off("FL_HAA")]),
+    Constraint(kv.q[solo.q_off("HR_KFE")] - kv.q[solo.q_off("HL_KFE")]),
+    Constraint(kv.q[solo.q_off("HR_HFE")] - kv.q[solo.q_off("HL_HFE")]),
+    Constraint(kv.q[solo.q_off("HR_HAA")] - kv.q[solo.q_off("HL_HAA")]),
+]
+
 BackflipLaunch: Task = Task(
-    duration = F("0.6"),
+    duration = F("0.75"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
         "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
         "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.4") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.4") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
     },
 
     task_constraints = [
@@ -278,7 +287,7 @@ BackflipLaunch: Task = Task(
         ),
         (
             # Constraints for halfway into the flip:
-            TimePeriod.point(F("0.6")),
+            TimePeriod.point(F("0.75")),
 
             lambda kv, solo: [
                 # Torso upside down:
@@ -291,31 +300,30 @@ BackflipLaunch: Task = Task(
             ]
         ),
         (
-            TimePeriod(start = F("0.0"), end = None),
-
+            TimePeriod(start=F("0.0"), end=None),
             lambda kv, solo: [
                 # Torso always 15cm above the floor:
-                Bound(kv.q[2], lb = solo.floor_z + 0.15, ub = ca.inf),
-            ]
-        ),
+                # Bound(kv.q[2], lb = solo.floor_z + 0.15, ub = ca.inf),
+            ] + left_right_symmetry(kv, solo)
+        )
     ],
 )
 
 BackflipLand: Task = Task(
-    duration = F("0.4"),
+    duration = F("0.6"),
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.4") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.4") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.4") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.4") + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.6") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.6") + frac_ε)]),
     },
 
     task_constraints = [
         (
             # Trajectory end:
-            TimePeriod.point(F("0.4")),
+            TimePeriod.point(F("0.6")),
 
             lambda kv, solo: [
                 Bound(kv.q[3:6]),   # Torso horizontal
@@ -326,13 +334,16 @@ BackflipLand: Task = Task(
             ]
         ),
         (
-            TimePeriod.point(F("0.2")),
-
+            TimePeriod.point(F("0.25")),
             lambda kv, solo: [
-                # The robot should not land very vertically - the front
-                # might go under the floor otherwise:
-                Bound(kv.q[4],  lb = -ca.inf, ub = 0.04),
+                # The robot should have almost completed its flip before landing.
+                # Otherwise, the front might go under the floor,
+                Bound(kv.q[4],  lb = -ca.inf, ub = +0.04),
             ]
         ),
+        (
+            TimePeriod(start=F("0.0"), end=None),
+            lambda kv, solo: left_right_symmetry(kv, solo)
+        )
     ],
 )

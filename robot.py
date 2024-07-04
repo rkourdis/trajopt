@@ -1,6 +1,7 @@
 import os
 import hppfcl
 import numpy as np
+import casadi as ca
 
 import pinocchio as pin
 from pinocchio import casadi as cpin
@@ -61,11 +62,13 @@ class Solo12:
         self.μ = 0.7
 
         # Maximum absolute torque for all joints (N*m):
-        self.τ_max = 2.5
+        # self.τ_max = 2.5
+        self.τ_max = ca.inf
 
-        # # Maximum L2 norm of the torque vector - this is to prevent
-        # # the power supply tripping:
+        # Maximum L2 norm of the torque vector - this is to prevent
+        # the power supply tripping:
         # self.τ_norm_max = 8.0
+        self.τ_norm_max = ca.inf
     
     def q_off(self, joint: str):
         return 6 + list(self.robot.model.names)[2:].index(joint)

@@ -255,35 +255,30 @@ JumpTaskBwd: Task = Task(
 )
 
 BackflipLaunch: Task = Task(
-    duration = F("1.0"),
-    traj_error = lambda t, kvars: 0.0, #ca.norm_2(kvars.τ) if t <= 0.3 else 0.,
+    duration = F("0.6"),
+    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.7") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.7") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.8") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.8") + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.4") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.4") + frac_ε)]),
     },
 
     task_constraints = [
         (
-            # Balance for the first 200ms:
-            TimePeriod(F("0.0"), F("0.2")),
+            # Balance for the first knot:
+            TimePeriod.point(F("0.0")),
 
             lambda kv, solo: [
-                # Torso static and horizontal at (0, 0):
-                Bound(kv.q[:2]),
-                Bound(kv.q[3:6]),
-                Bound(kv.v),
-
-                # Front knees not bent outwards for better stability:
-                Bound(kv.q[solo.q_off("FR_KFE")], lb = -ca.inf, ub = 0.),
-                Bound(kv.q[solo.q_off("FL_KFE")], lb = -ca.inf, ub = 0.),
+                Bound(kv.q[:2]),    # Torso at XY=(0,0)
+                Bound(kv.q[3:6]),   # Torso horizontal
+                Bound(kv.v),        # Entire robot static
             ]
         ),
         (
-            # This is halfway during the flip:
-            TimePeriod.point(F("1.0")),
+            # Constraints for halfway into the flip:
+            TimePeriod.point(F("0.6")),
 
             lambda kv, solo: [
                 # Torso upside down:
@@ -301,102 +296,33 @@ BackflipLaunch: Task = Task(
             lambda kv, solo: [
                 # Torso always 15cm above the floor:
                 Bound(kv.q[2], lb = solo.floor_z + 0.15, ub = ca.inf),
-                
-                # Rotationally limited joints:
-                Bound(kv.q[solo.q_off("FL_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
-                Bound(kv.q[solo.q_off("FR_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
-                Bound(kv.q[solo.q_off("HL_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
-                Bound(kv.q[solo.q_off("HR_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
-
-                # We don't allow hip AAs to deviate too much otherwise the
-                # robot rolls a lot:
-                Bound(kv.q[solo.q_off("FL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-                Bound(kv.q[solo.q_off("FR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-                Bound(kv.q[solo.q_off("HL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-                Bound(kv.q[solo.q_off("HR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
             ]
         ),
     ],
 )
 
 BackflipLand: Task = Task(
-    duration = F("0.6"),
-
-    # Minimize Z-up ground reaction force integral during landing:
-    traj_error = lambda t, kvars: ca.norm_2(kvars.λ[:, 2]) if t >= 0.3 else 0.0,
-    # ca.sqrt(
-    #     kvars.λ[:, 2].T @ kvars.λ[:, 2]
-    #     if t >= 0.2 and t <= 0.4 else
-    #     0.0
-    # ),
+    duration = F("0.4"),
+    traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.6") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.6") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.4") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.2"), F("0.4") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.4") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.4") + frac_ε)]),
     },
 
     task_constraints = [
         (
-            # End of the trajectory:
-            TimePeriod.point(F("0.6")),
+            # Trajectory end:
+            TimePeriod.point(F("0.4")),
 
             lambda kv, solo: [
-                # Torso horizontal and entire robot static:
-                Bound(kv.q[3:6]),
-                Bound(kv.v),
+                Bound(kv.q[3:6]),   # Torso horizontal
+                Bound(kv.v),        # Robot static
 
                 # Torso 20cm above the floor:
                 Bound(kv.q[2], lb = solo.floor_z + 0.2, ub = ca.inf),
-
-                # Bound(kv.q[0], lb = -0.4, ub = 0.0),
-                # Bound(kv.q[1], lb = -0.1, ub = 0.1),
-            ]
-        ),
-
-        (
-            TimePeriod(start = F("0.0"), end = None),
-
-            lambda kv, solo: [
-                # Rotationally limited joints:
-                Bound(kv.q[solo.q_off("FL_HFE")],  lb = -5 * np.pi / 4, ub = np.pi/2),
-                Bound(kv.q[solo.q_off("FR_HFE")],  lb = -5 * np.pi / 4, ub = np.pi/2),
-                Bound(kv.q[solo.q_off("HL_HFE")],  lb = -np.pi/2, ub = 5 * np.pi / 4),
-                Bound(kv.q[solo.q_off("HR_HFE")], lb = -np.pi/2, ub = 5 * np.pi / 4),
-
-                # Same as launch - don't allow hip AAs to deviate too much:
-                Bound(kv.q[solo.q_off("FL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-                Bound(kv.q[solo.q_off("FR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-                Bound(kv.q[solo.q_off("HL_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-                Bound(kv.q[solo.q_off("HR_HAA")], lb = -np.deg2rad(10), ub = np.deg2rad(10)),
-
-                Bound(kv.q[solo.q_off("FL_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
-                Bound(kv.q[solo.q_off("FR_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
-                Bound(kv.q[solo.q_off("HL_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
-                Bound(kv.q[solo.q_off("HR_KFE")], lb = -np.deg2rad(300), ub = np.deg2rad(300)),
-            ]
-        ),
-        (
-            TimePeriod(start = F("0.0"), end = F("0.3")),
-
-            lambda kv, solo: [
-                # Robot isn't too low when landing:
-                Bound(kv.q[2], lb = solo.floor_z + 0.18, ub = ca.inf),
-
-                # # Land with the knees bent inwards - these have been found
-                # # through trial and error:
-                # Bound(kv.q[6 + 2], lb = -np.deg2rad(120), ub = -np.deg2rad(45)),
-                # Bound(kv.q[6 + 5], lb = -np.deg2rad(120), ub = -np.deg2rad(45)),
-                # Bound(kv.q[6 + 1], lb = 0.0, ub = np.deg2rad(45)),
-                # Bound(kv.q[6 + 4], lb = 0.0, ub = np.deg2rad(45)),
-            ]
-        ),
-        (
-            TimePeriod(start = F("0.0"), end = F("0.15")),
-
-            lambda kv, solo: [
-                Bound(kv.v[6:],  lb = -2, ub = +2),
             ]
         ),
         (
@@ -406,11 +332,6 @@ BackflipLand: Task = Task(
                 # The robot should not land very vertically - the front
                 # might go under the floor otherwise:
                 Bound(kv.q[4],  lb = -ca.inf, ub = 0.04),
-
-                # Bound(kv.q[2], lb = solo.floor_z + 0.25, ub = ca.inf),
-
-                Bound(kv.q[solo.q_off("FL_KFE")], lb = -ca.inf, ub = -np.deg2rad(90)),
-                Bound(kv.q[solo.q_off("FR_KFE")], lb = -ca.inf, ub = -np.deg2rad(90)),
             ]
         ),
     ],

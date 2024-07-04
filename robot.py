@@ -61,11 +61,11 @@ class Solo12:
         self.μ = 0.7
 
         # Maximum absolute torque for all joints (N*m):
-        self.τ_max = 2.2
+        self.τ_max = 2.5
 
-        # Maximum L2 norm of the torque vector - this is to prevent
-        # the power supply tripping:
-        self.τ_norm_max = 8.0
+        # # Maximum L2 norm of the torque vector - this is to prevent
+        # # the power supply tripping:
+        # self.τ_norm_max = 8.0
     
     def q_off(self, joint: str):
         return 6 + list(self.robot.model.names)[2:].index(joint)

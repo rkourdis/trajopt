@@ -46,12 +46,14 @@ if __name__ == "__main__":
 
     problem = Problem(
         subproblems = [
-            Subproblem("flip_launch", BackflipLaunch, Fraction(opts.freq), solo, create_guess("flip_launch")),
-            Subproblem("flip_land", BackflipLand, Fraction(opts.freq), solo, create_guess("flip_land")),
+            Subproblem("jump", JumpTaskInPlace, Fraction(opts.freq), solo, create_guess("jump"))
+
+            # Subproblem("flip_launch", BackflipLaunch, Fraction(opts.freq), solo, create_guess("flip_launch")),
+            # Subproblem("flip_land", BackflipLand, Fraction(opts.freq), solo, create_guess("flip_land")),
         ],
 
         continuity_info = [
-            ContinuityInfo(q = lambda x: switch_mrp_in_q(x))
+            # ContinuityInfo(q = lambda x: switch_mrp_in_q(x))
         ]
     )
 

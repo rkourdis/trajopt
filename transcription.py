@@ -12,7 +12,7 @@ from guesses import GuessOracle
 from variables import CollocationVars
 from utilities import integrate_state
 from dynamics import ADForwardDynamics
-from kinematics import ADFootholdKinematics
+from kinematics import ADFrameKinematics
 
 @dataclass(frozen = True)
 # Struct that holds information about a transcribed subproblem.
@@ -76,8 +76,8 @@ class Subproblem:
             self.dvars.v_k.append(ca.SX.sym(f"{self.name}_v_{k}", self.robot.cmodel.nv))             # 18 x 1
             self.dvars.a_k.append(ca.SX.sym(f"{self.name}_a_{k}", self.robot.cmodel.nv))             # 18 x 1
             self.dvars.τ_k.append(ca.SX.sym(f"{self.name}_τ_{k}", len(self.robot.actuated_joints)))  # 12 x 1 
-            self.dvars.λ_k.append(ca.SX.sym(f"{self.name}_λ_{k}", len(self.robot.feet), 3))          # 4  x 3
-            self.dvars.f_pos_k.append(ca.SX.sym(f"{self.name}_f_pos_{k}", len(self.robot.feet), 3))  # 4  x 3
+            self.dvars.λ_k.append(ca.SX.sym(f"{self.name}_λ_{k}", len(self.robot.frames["feet"]), 3))          # 4  x 3
+            self.dvars.f_pos_k.append(ca.SX.sym(f"{self.name}_f_pos_{k}", len(self.robot.frames["feet"]), 3))  # 4  x 3
 
             self.dvars.knot_duration.append(float(self.dt))     # Same Δt for all knots
 
@@ -97,7 +97,7 @@ class Subproblem:
             Constraint(ca.norm_2(kv.τ), lb = 0.0, ub = self.robot.τ_norm_max),
 
             # Forward foothold kinematics:
-            Constraint(kv.f_pos - self.fk(kv.q))
+            Constraint(kv.f_pos - self.fk(kv.q)["feet"])
         ])
     #############################################################################
 
@@ -132,7 +132,7 @@ class Subproblem:
             λ, fp     = self.dvars.λ_k[k][foot_idx, :], self.dvars.f_pos_k[k][foot_idx, :]
 
             # Get foot contact times from the task description:
-            contact_times = self.task.contact_periods[self.robot.feet[foot_idx]]
+            contact_times = self.task.contact_periods[self.robot.frames["feet"][foot_idx]]
 
             # If foot isn't in contact, don't allow forces and constrain Z >= floor:
             if not contact_times.overlaps(t):
@@ -198,7 +198,7 @@ class Subproblem:
             )
 
         # Add constraints for all feet:
-        for foot_idx in range(len(self.robot.feet)):
+        for foot_idx in range(len(self.robot.frames["feet"])):
             add_constraints_for_foot(foot_idx)
     ###################################################################
 
@@ -213,7 +213,7 @@ class Subproblem:
 
         # Instantiate dynamics and kinematics routines:
         self.fd = ADForwardDynamics(self.robot)
-        self.fk = ADFootholdKinematics(self.robot)
+        self.fk = ADFrameKinematics(self.robot)
 
         # Add dynamics constraints for the above decision variables:
         for k in range(self.n_knots):
@@ -238,7 +238,7 @@ class Subproblem:
 
             for k in range(int(t_s / self.dt), int(t_e / self.dt) + 1):
                 kvars = self.dvars.get_vars_at_knot(k)
-                self.constraints.extend(get_constr(kvars, self.robot))
+                self.constraints.extend(get_constr(kvars, solo = self.robot, fk = self.fk))
 
         # Create expression for the scalar problem objective:
         self.objective = ca.SX.zeros(1)

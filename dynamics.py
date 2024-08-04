@@ -14,7 +14,7 @@ class ADForwardDynamics():
         self.cmodel, self.cdata = robot.cmodel, robot.cdata
 
         # Frame IDs of each foot:
-        self.foot_frame_ids = [self.cmodel.getFrameId(f) for f in robot.feet]
+        self.foot_frame_ids = [self.cmodel.getFrameId(f) for f in robot.frames["feet"]]
 
         # Joint IDs of each foot's frame parent joint:
         self.foot_parent_joint_ids = [

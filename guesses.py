@@ -7,7 +7,7 @@ from tasks import Task
 from robot import Solo12
 import utilities as utils
 from poses import load_robot_pose, Pose
-from kinematics import ADFootholdKinematics
+from kinematics import ADFrameKinematics
 from variables import KnotVars, CollocationVars
 
 @dataclass
@@ -29,8 +29,8 @@ class StandingGuess(GuessOracle):
 
         # Create numerical instance of FK to calculate feet positions:
         q_sym = ca.SX.sym("q_sym", self.q.shape)
-        ad_fk = ADFootholdKinematics(self.robot)
-        num_fk = ca.Function("num_fk", [q_sym], [ad_fk(q_sym)])
+        ad_fk = ADFrameKinematics(self.robot)
+        num_fk = ca.Function("num_fk", [q_sym], [ad_fk(q_sym)["feet"]])
 
         self.f_pos = utils.ca_to_np(num_fk(self.q))
 

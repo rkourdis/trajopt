@@ -52,8 +52,12 @@ class Solo12:
         # Hold information about the robot's feet, actuated joints and environment:
         self.floor_z = floor_z
 
-        # The order of forces will be as in this list:
-        self.feet = ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+        self.frames = {
+            # The order of GRFs will be as in this list:
+            "feet":      ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"],
+            "shoulders": ["FR_SHOULDER", "FL_SHOULDER", "HR_SHOULDER", "HL_SHOULDER"], 
+            "knees":     ["FR_LOWER_LEG", "FL_LOWER_LEG", "HR_LOWER_LEG", "HL_LOWER_LEG"], 
+        }
 
         # Skip 'universe' and 'root_joint' as they're not actuated:
         self.actuated_joints = [j.id for j in self.robot.model.joints[2:]]
@@ -62,13 +66,12 @@ class Solo12:
         self.μ = 0.7
 
         # Maximum absolute torque for all joints (N*m):
-        # self.τ_max = 2.5
-        self.τ_max = ca.inf
+        self.τ_max = 3.25  # ~14 A for 0.026 Nm/A
 
         # Maximum L2 norm of the torque vector - this is to prevent
         # the power supply tripping:
-        # self.τ_norm_max = 8.0
-        self.τ_norm_max = ca.inf
+        self.τ_norm_max = 8.0
+        # self.τ_norm_max = ca.inf
     
     def q_off(self, joint: str):
         return 6 + list(self.robot.model.names)[2:].index(joint)

@@ -47,11 +47,11 @@ class Task:
     # List of times at which a task-specific constraint must hold.
     # For each one, a "factory-like" callable is held which can create
     # constraint objects given the corresponding knot's decision variables
-    # and the robot model:
+    # and various keyword arguments (like the robot model).
     task_constraints: list[
         tuple[
             TimePeriod,
-            Callable[[KnotVars[ca.SX], Solo12], list[ConstraintType]]
+            Callable[[KnotVars[ca.SX], dict], list[ConstraintType]]
         ]
     ]
 
@@ -68,7 +68,7 @@ GetUpTask: Task = Task(
         (
             TimePeriod.point(F("0.0")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # We'll start all joints in the folded configuration. We don't constrain
                 # the robot's Z because if the feet are set on the floor by the contact
                 # constraints, there's only one solution for the Z (and that's < 0).
@@ -76,7 +76,7 @@ GetUpTask: Task = Task(
                 # NOTE: In other tasks starting with a V configuration, we do add the Z
                 #       constraint which might be overconstraining the problem, even though
                 #       it will automatically hold as we found FLOOR_Z via FK a priori.
-                Constraint(kv.q[3:] - create_state_vector(solo.robot, FOLDED_JOINT_MAP)[3:]),
+                Constraint(kv.q[3:] - create_state_vector(kwargs["solo"].robot, FOLDED_JOINT_MAP)[3:]),
 
                 # We'll add constraints for torso XY though:
                 Bound(kv.q[:2]),
@@ -88,7 +88,7 @@ GetUpTask: Task = Task(
         (
             TimePeriod.point(F("0.8")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # We _could_ constrain the entire q here, but we'll avoid it for the
                 # above reason:
                 Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
@@ -98,7 +98,7 @@ GetUpTask: Task = Task(
         ),
         (
             TimePeriod(F("0.0"), end = None),
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # Robot torso cannot go downwards during the entire trajectory.
                 # This is to avoid solutions where the robot initially falls
                 # to conserve torque:
@@ -140,7 +140,7 @@ JumpTaskInPlace: Task = Task(
         (
             TimePeriod.point(F("0.0")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
                 Bound(kv.v)
             ]
@@ -148,7 +148,7 @@ JumpTaskInPlace: Task = Task(
         (
             TimePeriod.point(F("1.2")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
                 Bound(kv.v)
             ]
@@ -156,8 +156,8 @@ JumpTaskInPlace: Task = Task(
         (
             TimePeriod(start = F("0.0"), end = None),
 
-            lambda kv, solo: [
-                Bound(kv.q[2], lb = solo.floor_z + 0.06, ub = ca.inf),
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.06, ub = ca.inf),
                 # Bound(kv.v[3:6], lb = -1.0, ub = 1.0)
             ]
         )
@@ -183,7 +183,7 @@ JumpTaskFwd: Task = Task(
         (
             TimePeriod.point(F("0.0")), 
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # Feet in standing V at the beginning:
                 Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
                 Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
@@ -195,12 +195,12 @@ JumpTaskFwd: Task = Task(
         (
             TimePeriod.point(F("1.0")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # Torso has moved forward:
                 Bound(kv.q[0], 0.4, ca.inf),
             
                 # Torso is horizontal above the ground at a certain height:
-                Bound(kv.q[2], solo.floor_z + 0.2, ca.inf),
+                Bound(kv.q[2], kwargs["solo"].floor_z + 0.2, ca.inf),
                 Bound(kv.q[3:6]),
 
                 # Robot is static:
@@ -210,8 +210,8 @@ JumpTaskFwd: Task = Task(
         (
             TimePeriod(start = F("0.0"), end = None),
 
-            lambda kv, solo: [
-                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.08, ub = ca.inf),
             ]
         )
     ],
@@ -235,7 +235,7 @@ JumpTaskBwd: Task = Task(
         (
             TimePeriod.point(F("1.0")),
             
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # Robot has gone back to original configuration:
                 Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
                 Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
@@ -247,24 +247,32 @@ JumpTaskBwd: Task = Task(
         (
             TimePeriod(start = F("0.0"), end = None),
 
-            lambda kv, solo: [
-                Bound(kv.q[2], lb = solo.floor_z + 0.08, ub = ca.inf),
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.08, ub = ca.inf),
             ]
         )
     ],
 )
 
-left_right_symmetry = lambda kv, solo: [
-    Constraint(kv.q[solo.q_off("FR_KFE")] - kv.q[solo.q_off("FL_KFE")]),
-    Constraint(kv.q[solo.q_off("FR_HFE")] - kv.q[solo.q_off("FL_HFE")]),
-    Constraint(kv.q[solo.q_off("FR_HAA")] - kv.q[solo.q_off("FL_HAA")]),
-    Constraint(kv.q[solo.q_off("HR_KFE")] - kv.q[solo.q_off("HL_KFE")]),
-    Constraint(kv.q[solo.q_off("HR_HFE")] - kv.q[solo.q_off("HL_HFE")]),
-    Constraint(kv.q[solo.q_off("HR_HAA")] - kv.q[solo.q_off("HL_HAA")]),
+LR_Symmetry_Constraints = lambda kv, **kwargs: [
+    Constraint(kv.q[kwargs["solo"].q_off("FR_KFE")] - kv.q[kwargs["solo"].q_off("FL_KFE")]),
+    Constraint(kv.q[kwargs["solo"].q_off("FR_HFE")] - kv.q[kwargs["solo"].q_off("FL_HFE")]),
+    Constraint(kv.q[kwargs["solo"].q_off("FR_HAA")] - kv.q[kwargs["solo"].q_off("FL_HAA")]),
+    Constraint(kv.q[kwargs["solo"].q_off("HR_KFE")] - kv.q[kwargs["solo"].q_off("HL_KFE")]),
+    Constraint(kv.q[kwargs["solo"].q_off("HR_HFE")] - kv.q[kwargs["solo"].q_off("HL_HFE")]),
+    Constraint(kv.q[kwargs["solo"].q_off("HR_HAA")] - kv.q[kwargs["solo"].q_off("HL_HAA")]),
+]
+
+HFE_Limit_Constraints = lambda kv, **kwargs: [
+    Bound(kv.q[kwargs["solo"].q_off("FL_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
+    Bound(kv.q[kwargs["solo"].q_off("FR_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
+    Bound(kv.q[kwargs["solo"].q_off("HL_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
+    Bound(kv.q[kwargs["solo"].q_off("HR_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
 ]
 
 BackflipLaunch: Task = Task(
     duration = F("0.75"),
+    # traj_error = lambda t, kvars: 0.0,
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
@@ -279,17 +287,17 @@ BackflipLaunch: Task = Task(
             # Balance for the first knot:
             TimePeriod.point(F("0.0")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 Bound(kv.q[:2]),    # Torso at XY=(0,0)
                 Bound(kv.q[3:6]),   # Torso horizontal
                 Bound(kv.v),        # Entire robot static
             ]
         ),
         (
-            # Constraints for halfway into the flip:
+            # Flip constraints:
             TimePeriod.point(F("0.75")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # Torso upside down:
                 Bound(kv.q[4], lb = -1.0, ub = -1.0),
                 
@@ -301,23 +309,34 @@ BackflipLaunch: Task = Task(
         ),
         (
             TimePeriod(start=F("0.0"), end=None),
-            lambda kv, solo: [
-                # Torso always 15cm above the floor:
-                # Bound(kv.q[2], lb = solo.floor_z + 0.15, ub = ca.inf),
-            ] + left_right_symmetry(kv, solo)
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.12, ub = ca.inf),
+
+                # Don't allow the hind knees to go below the ground:
+                Constraint(
+                    kwargs["fk"](kv.q)["knees"][2:, 2],
+                    lb = kwargs["solo"].floor_z + 0.02, ub = ca.inf
+                )
+            ]
+        ),
+        (
+            TimePeriod(start=F("0.0"), end=None),
+            lambda kv, **kwargs: 
+                LR_Symmetry_Constraints(kv, **kwargs) + HFE_Limit_Constraints(kv, **kwargs)
         )
     ],
 )
 
 BackflipLand: Task = Task(
     duration = F("0.6"),
+    # traj_error = lambda t, kvars: 0.0,
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
         "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
         "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.6") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.35"), F("0.6") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
     },
 
     task_constraints = [
@@ -325,25 +344,35 @@ BackflipLand: Task = Task(
             # Trajectory end:
             TimePeriod.point(F("0.6")),
 
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 Bound(kv.q[3:6]),   # Torso horizontal
                 Bound(kv.v),        # Robot static
 
                 # Torso 20cm above the floor:
-                Bound(kv.q[2], lb = solo.floor_z + 0.2, ub = ca.inf),
+                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.2, ub = ca.inf),
             ]
         ),
         (
             TimePeriod.point(F("0.25")),
-            lambda kv, solo: [
+            lambda kv, **kwargs: [
                 # The robot should have almost completed its flip before landing.
                 # Otherwise, the front might go under the floor,
-                Bound(kv.q[4],  lb = -ca.inf, ub = +0.04),
+                Bound(kv.q[4], lb = -ca.inf, ub = +0.04),
+
+                # Front feet land in front of the CoM for stability:
+                Constraint(kv.f_pos[:2, 0] - kv.q[0], lb = 0.14, ub = ca.inf),
             ]
         ),
         (
             TimePeriod(start=F("0.0"), end=None),
-            lambda kv, solo: left_right_symmetry(kv, solo)
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.12, ub = ca.inf)
+            ]
+        ),
+        (
+            TimePeriod(start=F("0.0"), end=None),
+            lambda kv, **kwargs:
+                LR_Symmetry_Constraints(kv, **kwargs) + HFE_Limit_Constraints(kv, **kwargs)
         )
     ],
 )

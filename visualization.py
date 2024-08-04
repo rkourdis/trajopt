@@ -22,4 +22,8 @@ def visualise_solution(filename: str, solo: Solo12):
         time.sleep(dt)
 
         print("norm(τ): ", np.linalg.norm(g_traj.τ_k[k], ord = 2))
+        print("torso height:", g_traj.q_k[k][2] - solo.floor_z)
+
+        print("HR_KFE", g_traj.q_k[k][solo.q_off("HR_KFE")])
+        print("HL_KFE", g_traj.q_k[k][solo.q_off("HL_KFE")])
         input()

@@ -8,7 +8,6 @@ import casadi as ca
 import intervaltree as ivt
 
 from constraints import *
-from robot import Solo12
 from configurations import *
 from utilities import frac_ε
 from variables import KnotVars
@@ -272,8 +271,9 @@ HFE_Limit_Constraints = lambda kv, **kwargs: [
 
 BackflipLaunch: Task = Task(
     duration = F("0.75"),
-    # traj_error = lambda t, kvars: 0.0,
+
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
+    # traj_error = lambda t, kvars: 0.0,
 
     contact_periods = {
         "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
@@ -315,22 +315,21 @@ BackflipLaunch: Task = Task(
                 # Don't allow the hind knees to go below the ground:
                 Constraint(
                     kwargs["fk"](kv.q)["knees"][2:, 2],
-                    lb = kwargs["solo"].floor_z + 0.02, ub = ca.inf
+                    lb = kwargs["solo"].floor_z + 0.02,
+                    ub = ca.inf
                 )
-            ]
+            ] +
+                LR_Symmetry_Constraints(kv, **kwargs) +
+                HFE_Limit_Constraints(kv, **kwargs)
         ),
-        (
-            TimePeriod(start=F("0.0"), end=None),
-            lambda kv, **kwargs: 
-                LR_Symmetry_Constraints(kv, **kwargs) + HFE_Limit_Constraints(kv, **kwargs)
-        )
     ],
 )
 
 BackflipLand: Task = Task(
     duration = F("0.6"),
-    # traj_error = lambda t, kvars: 0.0,
+
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
+    # traj_error = lambda t, kvars: 0.0,
 
     contact_periods = {
         "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
@@ -365,14 +364,12 @@ BackflipLand: Task = Task(
         ),
         (
             TimePeriod(start=F("0.0"), end=None),
+            
             lambda kv, **kwargs: [
                 Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.12, ub = ca.inf)
-            ]
+            ] +
+                LR_Symmetry_Constraints(kv, **kwargs) +
+                HFE_Limit_Constraints(kv, **kwargs)
         ),
-        (
-            TimePeriod(start=F("0.0"), end=None),
-            lambda kv, **kwargs:
-                LR_Symmetry_Constraints(kv, **kwargs) + HFE_Limit_Constraints(kv, **kwargs)
-        )
     ],
 )

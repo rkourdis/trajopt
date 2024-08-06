@@ -184,14 +184,12 @@ JumpTaskFwd: Task = Task(
     # Minimize torque during the jump:
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
-    # 300ms jump:
+    # 300ms jump, front legs leave the ground first:
     contact_periods = {
-        foot: ivt.IntervalTree([
-            ivt.Interval(F("0.0"), F("0.3") + frac_ε),
-            ivt.Interval(F("0.6"), F("1.0") + frac_ε)
-        ])
-
-        for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
     },
 
     task_constraints = [
@@ -223,9 +221,14 @@ JumpTaskFwd: Task = Task(
         (
             TimePeriod(start = F("0.0"), end = None),
 
-            # Keep torso above the floor by 8cm, always:
+            # Keep torso above the floor by 8cm, always.
+            # Also, keep knees above the floor by 2cm.
+            # Disallow roll or yaw.
             lambda kv, **kwargs: [
                 Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.08, ub = ca.inf),
+                Constraint(kwargs["fk"](kv.q)["knees"][:, 2], lb = kwargs["solo"].floor_z + 0.02, ub = ca.inf),
+                Bound(kv.v[3]),
+                Bound(kv.v[5]),
             ]
         )
     ],
@@ -241,12 +244,10 @@ JumpTaskBwd: Task = Task(
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        foot: ivt.IntervalTree([
-            ivt.Interval(F("0.0"), F("0.3") + frac_ε),
-            ivt.Interval(F("0.6"), F("1.0") + frac_ε)
-        ])
-
-        for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
     },
 
     task_constraints = [
@@ -269,6 +270,9 @@ JumpTaskBwd: Task = Task(
 
             lambda kv, **kwargs: [
                 Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.08, ub = ca.inf),
+                Constraint(kwargs["fk"](kv.q)["knees"][:, 2], lb = kwargs["solo"].floor_z + 0.02, ub = ca.inf),
+                Bound(kv.v[3]),
+                Bound(kv.v[5]),
             ]
         )
     ],

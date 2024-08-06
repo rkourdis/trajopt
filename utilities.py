@@ -9,14 +9,14 @@ from liecasadi import SE3, SE3Tangent
 MatrixLike = Union[np.ndarray, ca.SX]
 
 # This will switch an MRP to its shadow. Typically you would
-# do this if the MRP is crossing the unit norm sphere (or if
+# do this when the MRP crosses the unit norm sphere (or if
 # some other switching criterion is met), to avoid the singularity
 # at 2π. However, doing the switch conditionally during gradient-based
 # optimization increases the difficulty of the problem as a
 # discontinuity is introduced. For that reason, if a full
-# flip is needed, we'll split the problem into two halves,
+# flip is needed, we'll split the problem into two halves
 # with the MRP switched at the beginning of the second one.
-# NOTE: I think liecasadi is switching the MRP as well, a while
+# NOTE: I think liecasadi is switching the MRP as well, some time
 #       after crossing the unit norm sphere.
 def switch_mrp(mrp: ca.SX) -> ca.SX:
     # The +ε prevents issues with presolving as you can't switch the (0, 0, 0) MRP:
@@ -38,12 +38,12 @@ def mrp2quat(xyz: ca.SX) -> ca.SX:
     return ca.vertcat(2 * xyz / (1 + normsq), w)
 
 # State using MRP for base orientation to state with quaternion.
-# We assume the floating base is at [0:6] -> x, y, z, mrp
+# We assume the floating base is at offsets [0:6]: x, y, z, mrp
 def q_mrp_to_quat(q_mrp: ca.SX) -> ca.SX:
     return ca.vertcat(q_mrp[:3], mrp2quat(q_mrp[3:6]), q_mrp[6:])
 
 # State using quaternion for base orientation to state with MRP.
-# We assume the floating base is at [0:7] -> x, y, z, xyzw
+# We assume the floating base is at offsets [0:7]: x, y, z, xyzw
 def q_quat_to_mrp(q_quat: ca.SX) -> ca.SX:
     return ca.vertcat(q_quat[:3], quat2mrp(q_quat[3:7]), q_quat[7:])
 

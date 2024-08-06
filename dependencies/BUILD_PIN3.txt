@@ -23,6 +23,7 @@ ctest --output-on-failure
 sudo make install
 
 ### Ipopt
+### ! REPLACE WITH KNITRO !
 ------------------
 sudo apt-get install gcc g++ gfortran git patch wget pkg-config liblapack-dev libmetis-dev
 
@@ -68,7 +69,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j6
 sudo make install
 
-### Pinocchio 3
+### Pinocchio 3 (-preview)
 ----------------------
 # sudo apt-get install libsdformat-dev
 pip3 install --no-deps liecasadi

@@ -7,13 +7,13 @@ T = TypeVar('T')
 
 @dataclass
 class KnotVars(Generic[T]):
-    # Helper type to hold all variables for a single knot:
+    # Helper struct to hold all variables for a single knot:
     q: T; v: T; a: T; τ: T; λ: T; f_pos: T
 
 @dataclass
 class CollocationVars(Generic[T]):
     # These variables correspond to the transcription of a single subproblem.
-    # The entire problem may need to stitch two or more subproblems to be
+    # The entire problem may need to stitch two or more subproblems that are
     # solved at the same time.
     n_knots:  int
 
@@ -24,14 +24,14 @@ class CollocationVars(Generic[T]):
     λ_k:        list[T] = field(default_factory=list)  # 4x3
     f_pos_k:    list[T] = field(default_factory=list)  # 4x3
 
-    slack_vars: list[T] = field(default_factory=list)  # Problem-dependent
+    slack_vars: list[T] = field(default_factory=list)  # Subproblem-dependent
     
     # Time duration of each knot (Δt). Useful when stitching trajectories
-    # discretized with different frequencies:
+    # discretized at different frequencies:
     knot_duration: list[float] = field(default_factory=list, init=False)
 
     # Flatten variable set into a column vector. Slack variables
-    # are appended at the end of the vector:
+    # are appended at the end:
     def flatten(self) -> T:
         return flatten_mats(
             self.q_k + self.v_k + self.a_k + \
@@ -67,7 +67,7 @@ class CollocationVars(Generic[T]):
         raise NotImplementedError
     
     @staticmethod
-    # Load trajectory and slack variables from column vectors.
+    # Load trajectory and slack variables from a flattened column vector.
     # We assume that all knots are of equal time duration.
     # Return the variables as well as the total variable count:
     def unflatten(n_knots: int, slack_var_count: int, duration: float, vec: T) -> tuple[Any, int]:

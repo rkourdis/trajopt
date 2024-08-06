@@ -28,9 +28,9 @@ if __name__ == "__main__":
         visualise_solution(opts.visualize_file, solo)
         exit()
 
+    # Load previous solution from file if it's used as an initial guess.
+    # Interpolate, if needed.
     if opts.prev_solution_file:
-        # Load previous solution from file if we should use it as
-        # the initial guess:
         with open(opts.prev_solution_file, "rb") as rf:
             prev_soln = pickle.load(rf)
 
@@ -40,17 +40,25 @@ if __name__ == "__main__":
                 opts.interp_factor
             )
         
+    # Otherwise, use the robot standing pose as the guess:
     else:
-        # Otherwise, use the robot standing pose as the guess:
         create_guess = lambda _: StandingGuess(solo)
 
+    # Problem definition:
     problem = Problem(
         subproblems = [
+            # We split the backflip in two subproblems ('launch', 'land'), as the MRP orientation
+            # representation has a singularity at full rotation. Quaternions are difficult to
+            # optimize due to the unit norm constraint.
             Subproblem("flip_launch", BackflipLaunch, Fraction(opts.freq), solo, create_guess("flip_launch")),
             Subproblem("flip_land", BackflipLand, Fraction(opts.freq), solo, create_guess("flip_land")),
         ],
 
         continuity_info = [
+            # We avoid the MRP singularity by forcing the solutions of 'launch' and 'land' to be
+            # continuous in all variables except the MRP. The MRP at the end of the launch
+            # will be switched to its shadow for the landing, allowing it to reach (0, 0, 0)
+            # again.
             ContinuityInfo(q = lambda x: switch_mrp_in_q(x))
         ]
     )
@@ -63,8 +71,11 @@ if __name__ == "__main__":
 
     print(f"Saved solution to: {output_filename}")
 
+    # Save .hdf5 trajectory for hardware execution:
     if opts.hdf5_file:
         subtrajectories = Problem.load_trajectories(solution)
+
+        # Stitch all subproblem solutions:
         stitched = Problem.stitch_trajectories(subtrajectories)
 
         export_hdf5(stitched, opts.hdf5_file)

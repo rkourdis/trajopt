@@ -17,8 +17,8 @@ from kinematics import ADFrameKinematics
 @dataclass(frozen = True)
 # Struct that holds information about a transcribed subproblem.
 # We'll store this alongside the global solution vector when the
-# optimizer completes so that we can load, visualize and execute a
-# solution without needing to transcribe the exact same problem again. 
+# optimizer completes. This way we can load, visualize and execute a
+# solution without needing to transcribe exactly the same problem again. 
 class TranscriptionInfo:
     subproblem_name: str
     
@@ -58,7 +58,6 @@ class Subproblem:
         if self.task.duration % self.dt != 0:
             floor_k = self.task.duration // self.dt
 
-            # TODO: Test this!
             raise ValueError(
                 f"Make sure task duration ({self.task.duration}s) is divisible by Δt ({self.dt}s). " + \
                 f"Closest are: {floor_k * self.dt}s or {(floor_k + 1) * self.dt}s."
@@ -101,7 +100,7 @@ class Subproblem:
         ])
     #############################################################################
 
-    # Integration constraints using fully implicit Euler:
+    # Integration constraints (fully implicit Euler):
     #####################################################
     def _add_integration_constraints(self, k: int) -> None:
         assert k > 0, "Cannot add integration constraint on the first knot!"
@@ -112,7 +111,7 @@ class Subproblem:
         # NOTE: Changing the velocity constraint to the equivalent:
         #           v - (v_prev + dt * a) == 0
         #       seems to make the jump problem more difficult!
-        #       Instead of 199 iterations it then takes 474, and the
+        #       Instead of 199 iterations it will take 474, and the
         #       final objective is 1.83 instead of 1.45...
         self.constraints.extend([
             Constraint((v - v_prev) - float(self.dt) * a),

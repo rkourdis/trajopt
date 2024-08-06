@@ -8,13 +8,13 @@ from constraints import Constraint
 
 @dataclass
 # This class holds continuity information for all trajectory decision
-# variables. This will be used to generate constraints that ensure
+# variables. It will be used to generate constraints that ensure
 # continuity between the last knot of each subproblem and the first knot
 # of the next. A conversion method can be provided for each one of the
 # variables, which: given the variable at the last knot of a subproblem
-# (suppose A[-1].x), returns what the variable must be in the first knot 
+# (A[-1].x), returns what the variable must be in the first knot 
 # of the following subproblem (B[0].x).
-# Constraints of the form A[-1].x - B[0].x == 0 can then be generated.
+# Constraints of the form A[-1].x - B[0].x == 0 will then be generated.
 class ContinuityInfo():
     q:      Callable[[ca.SX], ca.SX] = lambda x: x
     v:      Callable[[ca.SX], ca.SX] = lambda x: x

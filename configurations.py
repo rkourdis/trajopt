@@ -6,8 +6,8 @@ from utilities import q_quat_to_mrp, ca_to_np
 # Various useful robot joint configurations.
 # The order of joints does not correspond to the order of joints in the model!
 
-# Solo 12 at folded configuration, with the knees slightly open downwards,
-# so that feet are in contact with the ground:
+# Solo12 in folded configuration, with the knees slightly open downwards
+# so the feet are in contact with the ground:
 FOLDED_JOINT_MAP = {
     "FR_HAA": 0,
     "FL_HAA": 0,
@@ -23,7 +23,7 @@ FOLDED_JOINT_MAP = {
     "HL_HFE": -np.pi / 2,
 }
 
-# Solo 12 standing with legs at V configuration:
+# Solo12 standing with legs in V configuration:
 UPRIGHT_JOINT_MAP = {
     "FR_HAA": 0,
     "FL_HAA": 0,
@@ -40,8 +40,7 @@ UPRIGHT_JOINT_MAP = {
 }
 
 # Given a dictionary of {"JOINT_NAME": angle} pairs, return a state vector
-# with all joints at the neutral configuration except those in the dictionary,
-# which will be set at the provided angles.
+# with all joints in the neutral configuration except those in the dictionary.
 # The returned state expresses the floating base orientation using MRP.
 def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float]) -> np.ndarray:
     q_quat = np.expand_dims(pin.neutral(robot.model), axis = -1)    # 19x1

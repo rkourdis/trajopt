@@ -6,9 +6,9 @@ import numpy as np
 from problem import Problem
 from variables import CollocationVars
 
+# Exports a trajectory to .hdf5 to be imported by the control code.
+# Import from C++ using: https://bluebrain.github.io/HighFive/poster/
 def export_hdf5(trajectory: CollocationVars[np.ndarray], filename: str):
-    # Exports a trajectory to .hdf5 to be imported by the control code.
-    # Import from C++ using https://bluebrain.github.io/HighFive/poster/
     with h5py.File(filename, "w") as wf:
         fields = ["q", "v", "a", "τ"]
 

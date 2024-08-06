@@ -21,31 +21,29 @@ class GuessOracle(ABC):
         pass
 
 @dataclass
-# Creates a constantly standing pose:
+# Returns a static standing pose:
 class StandingGuess(GuessOracle):
     def __post_init__(self):
-        # Load pose from pickled closed form solution:
+        # Load pose from pickled closed-form (accel = 0) solution:
         self.q, self.v, self.τ, self.λ = load_robot_pose(Pose.STANDING_V)
 
-        # Create numerical instance of FK to calculate feet positions:
+        # Do FK to calculate feet positions:
         q_sym = ca.SX.sym("q_sym", self.q.shape)
         ad_fk = ADFrameKinematics(self.robot)
         num_fk = ca.Function("num_fk", [q_sym], [ad_fk(q_sym)["feet"]])
 
         self.f_pos = utils.ca_to_np(num_fk(self.q))
 
-    # Provide standing guess. If `switch_mrp`, it switches the floating
-    # base MRP to the shadow one, to avoid the 2π singularity:
     def guess(self, _: int) -> KnotVars:
         return KnotVars(
             np.copy(self.q), np.copy(self.v), np.zeros(self.v.shape),
             np.copy(self.τ), np.copy(self.λ), np.copy(self.f_pos)
         )
 
-# Returns a previous trajectory for a subproblem as an initial guess.
-# If `interp_factor` is set, the trajectory will be interpolated by simple
-# repetition, as if the transcription frequency was the original multiplied
-# by `interp_factor`:
+# Returns a previous subproblem trajectory as an initial guess.
+# If `interp_factor` is set, the trajectory will be interpolated
+# by simple repetition, as if the transcription frequency was the
+# original times `interp_factor`:
 class PrevTrajGuess(GuessOracle):
     def __init__(self, base_traj: CollocationVars[np.ndarray], interp_factor: int = 1):
         assert interp_factor >= 1, f"Interpolation factor must be >= 1"

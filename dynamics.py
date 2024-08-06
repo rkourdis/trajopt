@@ -5,8 +5,8 @@ from robot import Solo12
 from utilities import q_mrp_to_quat
 
 # Autodiff forward dynamics using CasADi.
-# Given the robot's state, velocity, torques at all joints and foot GRFs, this
-# calculates the state acceleration using the Articulated Body Algorithm.
+# Given the robot's state, velocity, torques at all joints and foot GRFs,
+# calculates state acceleration using the Articulated Body Algorithm.
 # The foot GRFs are expressed in each foot's local world-aligned frame.
 class ADForwardDynamics():
     def __init__(self, robot: Solo12):
@@ -16,7 +16,7 @@ class ADForwardDynamics():
         # Frame IDs of each foot:
         self.foot_frame_ids = [self.cmodel.getFrameId(f) for f in robot.frames["feet"]]
 
-        # Joint IDs of each foot's frame parent joint:
+        # Joint IDs of each foot frame parent joint:
         self.foot_parent_joint_ids = [
             self.cmodel.frames[ff_id].parentJoint for ff_id in self.foot_frame_ids
         ]
@@ -52,13 +52,12 @@ class ADForwardDynamics():
             
         # Each actuated joint is one degree of freedom. Create a robot.nv x 1
         # torque vector with only the actuated DoFs set.
-        # NOTE: We skip all unactuated joints when applying torques, and external forces.
         tau_full = ca.SX.zeros(self.cmodel.nv, 1)
         for act_dof, j_id in enumerate(self.robot.actuated_joints):
             tau_full[self.cmodel.joints[j_id].idx_v] = τ_act[act_dof]
 
         # We calculate the unconstrained dynamics using the ABA algorithm.
-        # The constraint forces will be chosen by the optimization so that they balance
+        # The constraint forces will be chosen by the optimizer to balance
         # the legs on contact, as described by the contact constraints.
 
         # Add a bit of viscous friction to the joints:

@@ -23,8 +23,9 @@ class Solution:
 class Problem:
     subproblems:            list[Subproblem]
     continuity_info:        list[ContinuityInfo]  = field(default_factory = list)
-
     transcribed:            bool                  = field(default = False, init = False)
+
+    # Problem level constraints, e.g. continuity between subproblem solutions.
     problem_constraints:    list[Constraint]      = field(default_factory = list, init = False)
 
     def __post_init__(self):
@@ -152,8 +153,7 @@ class Problem:
 
     @staticmethod
     # Utility method to combine trajectories from multiple subproblems into
-    # a single trajectory. This is useful when loading a solution to a problem
-    # composed of multiple subproblems.
+    # a single trajectory.
     # The last knot of every subproblem (excl. last subproblem) should represent
     # the same time as the first knot of its subsequent subproblem. Therefore,
     # the stitched trajectory will drop these initial knots for all subproblems
@@ -182,14 +182,14 @@ class Problem:
         return global_solution
     
     @staticmethod
-    # Utility method to load subproblem trajectories from a problem solution:
+    # Utility method to load subproblem trajectories from a global problem solution:
     def load_trajectories(soln: Solution) -> list[CollocationVars[np.ndarray]]:
         vec = soln.solver_output["x"]
         subp_solns, cur_vec_offset = [], 0
 
         for info in soln.transcription_infos:
             # Load variables for each subproblem, starting at the
-            # current vector offset:
+            # current solution vector offset:
             subp_soln, var_count = CollocationVars[np.ndarray].unflatten(
                 info.n_knots, info.slack_var_count, info.dt, vec[cur_vec_offset:]
             )
@@ -202,7 +202,7 @@ class Problem:
         return subp_solns
     
     @staticmethod
-    # Utility method to load a single subproblem's trajectory from a solution:
+    # Utility method to load a single subproblem's trajectory from a global solution:
     def load_subtrajectory(soln: Solution, subproblem_name: str) -> CollocationVars[np.ndarray]:
         trajectories = Problem.load_trajectories(soln)
 

@@ -1,3 +1,7 @@
+# Please see:
+# https://github.com/stack-of-tasks/pinocchio/blob/ac0b1aa6b18931bed60d0657de3c7680a4037dd3/examples/static-contact-dynamics.py
+# for an explanation of how this works.
+
 import os
 import hppfcl
 

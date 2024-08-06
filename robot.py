@@ -11,7 +11,7 @@ class Solo12:
         pkg_path = os.path.dirname(__file__)
         urdf_path = os.path.join(pkg_path, "example-robot-data/robots/solo_description/robots/solo12.urdf")
 
-        # Load full URDF. This creates a RobotWrapper that contains both the read-only model and the data:
+        # Load full URDF. This creates a RobotWrapper containing the read-only model and runtime data:
         self.robot = pin.RobotWrapper.BuildFromURDF(
             urdf_path, package_dirs = [pkg_path], root_joint = pin.JointModelFreeFlyer()
         )
@@ -38,7 +38,7 @@ class Solo12:
         # Display an initial pose:
         self.robot.display(pin.neutral(self.robot.model))
 
-    # Load Solo 12 robot and a floor at a given height, if visialize == True:
+    # Load Solo12 robot and add floor if visialize == True:
     def __init__(self, floor_z: float = -0.226274, visualize: bool = False):
         self._load_robot()
         

@@ -5,7 +5,7 @@ from robot import Solo12
 from utilities import q_mrp_to_quat
 
 # Autodiff frame kinematics using CasADi.
-# Calculates frame positions at the provided state:
+# Calculates frame placements at the provided robot state:
 class ADFrameKinematics():
     def __init__(self, robot: Solo12):
         self.cmodel, self.cdata = robot.cmodel, robot.cdata

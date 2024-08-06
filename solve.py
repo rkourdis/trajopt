@@ -52,7 +52,7 @@ def solve(problem: Problem) -> Solution:
         lbg = c_lb, ubg = c_ub,
     )
 
-    # Convert all CasADi matrices to NumPy before storing:
+    # Convert all CasADi matrices to NumPy before storing solution:
     np_soln = {k: ca_to_np(v) for k, v in soln.items()}
 
     return Solution(

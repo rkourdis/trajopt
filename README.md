@@ -6,34 +6,15 @@ This is a trajectory optimization program written as a learning exercise to gene
 <img src="assets/crashed_bot.jpg" width="300"/>
 </p>
 
-## Backstory
-
-One day, I asked myself:
-
-> _If Boston Dynamics can make their robots do backflips, why can't I?_ 🤔
-
-... so I set out to build a quadruped 🤖.
-
-After building it I still hadn't figured out _how_ to do the backflip...
-
-I learned about *offline trajectory optimization* from:
-
-- The excellent paper by Matthew Kelly: [`Transcription Methods for Trajectory Optimization`](https://epubs.siam.org/doi/10.1137/16M1062569)
-
-- The paper by Posa et al.: [`A Direct Method for Trajectory Optimization of
-Rigid Bodies Through Contact`](https://groups.csail.mit.edu/robotics-center/public_papers/Posa13.pdf)
-
-- My friend, [Henrique](https://ferrolho.github.io/), who's been doing [very](https://www.youtube.com/watch?v=5uF3VqgjiVE), [cool](https://www.youtube.com/watch?v=1M32AHuuDhI), [things](https://x.com/hferrolho/status/1827764537119916188) with robots for a long time
-
-and wrote this.
-
 ## Capabilities
 
 With this framework, you can generate agile motions such as:
 
-||||| 
+|`GetUpTask`|`JumpTaskInPlace`|`JumpTaskFwd` & `JumpTaskBwd`|`BackflipLaunch` & `BackflipLand`| 
 |---|---|---|---|
 | <img src="assets/get_up.gif" alt="robot gets up" style="width:220px;"/> | <img src="assets/jump_in_place.gif" alt="robot jumps in place" style="width:220px;"/> | <img src="assets/double_jump.gif" alt="robot jumps forward and backward" style="width:220px;"/> | <img src="assets/backflip.gif" alt="robot backflips" style="width:220px;"/> |
+
+The task descriptions for each of these trajectories are included in [`tasks.py`](tasks.py).
 
 Currently, only the [Solo12](https://github.com/open-dynamic-robot-initiative/open_robot_actuator_hardware/blob/master/mechanics/quadruped_robot_12dof_v1/README.md) quadruped is supported, however, the code can be extended to support different robots.
 
@@ -47,6 +28,27 @@ Features:
 - **Loading of a solution as an initial guess**: A low frequency solution can be interpolated via simple knot repetition and provided as an initial guess to a higher frequency problem
 
 - **HDF5 export**: A trajectory can be exported to .hdf5 to be executed on hardware (using [solo12_tools](https://github.com/rkourdis/solo12_tools))
+
+## Backstory
+
+One day, I asked myself:
+
+> _If Boston Dynamics can make their robots do backflips, why can't I?_ 🤔
+
+... so I set out to build a quadruped 🤖. A few months later, with the quadruped at hand, I still had no clue _how_ to do the backflip.
+
+This code is the _how_.
+
+### Resources
+
+I learned about *offline trajectory optimization* from:
+
+- The excellent paper by Matthew Kelly: [`Transcription Methods for Trajectory Optimization`](https://epubs.siam.org/doi/10.1137/16M1062569)
+
+- The paper by Posa et al.: [`A Direct Method for Trajectory Optimization of
+Rigid Bodies Through Contact`](https://groups.csail.mit.edu/robotics-center/public_papers/Posa13.pdf)
+
+- My friend, [Henrique](https://ferrolho.github.io/), who's been doing [very](https://www.youtube.com/watch?v=5uF3VqgjiVE), [cool](https://www.youtube.com/watch?v=1M32AHuuDhI), [things](https://x.com/hferrolho/status/1827764537119916188) with robots for a long time
 
 ## Getting Started
 
@@ -63,6 +65,12 @@ Make sure to fetch the robot model after cloning:
 ```
 git submodule update --recursive --init
 ```
+
+Example task descriptions can be found in [`tasks.py`](tasks.py). An optimization problem needs to be defined by providing a task and continuity info under [`main.py`](main.py).
+
+**To start the optimization with a discretisation frequency of 20Hz:** `python3 ./main.py --freq=20`.
+
+**To visualise the solution:** `python3 ./main.py --freq=20 --visualize_file=./solution_20hz.bin`.
 
 ## Algorithm Description
 

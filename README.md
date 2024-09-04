@@ -68,9 +68,9 @@ git submodule update --recursive --init
 
 Example task descriptions can be found in [`tasks.py`](tasks.py). An optimization problem needs to be defined by providing a task and continuity info under [`main.py`](main.py).
 
-**To start the optimization with a discretisation frequency of 20Hz:** `python3 ./main.py --freq=20`.
+**To start the optimization with a discretisation frequency of 20Hz:** `python3 ./src/main.py --freq=20`.
 
-**To visualise the solution:** `python3 ./main.py --freq=20 --visualize_file=./solution_20hz.bin`.
+**To visualise the solution:** `python3 ./src/main.py --freq=20 --visualize_file=./solution_20hz.bin`.
 
 ## Algorithm Description
 
@@ -115,7 +115,7 @@ _Under tasks `BackflipLaunch` and `BackflipLand`:_
 _Under `robot.py`:_
 1. Set `self.τ_norm_max = ca.inf` to disable the torque norm limit
 
-_**Run:**_ `python3 ./main.py --freq=20 && mv solution_20hz.bin solution_20hz_v1.bin`
+_**Run:**_ `python3 ./src/main.py --freq=20 && mv solution_20hz.bin solution_20hz_v1.bin`
 
 > This converges after 556 iterations with abs. feas. error = 2.23e-04
 
@@ -126,7 +126,7 @@ _Under tasks `BackflipLaunch` and `BackflipLand`:_
 1. Uncomment `HFE_Limit_Constraints` to enable HFE limits
 
 
-_**Run:**_ `python3 ./main.py --freq=20 --prev_solution_file=./solution_20hz_v1.bin && mv solution_20hz.bin solution_20hz_v2.bin`
+_**Run:**_ `python3 ./src/main.py --freq=20 --prev_solution_file=./solution_20hz_v1.bin && mv solution_20hz.bin solution_20hz_v2.bin`
 
 > This converges after 183 iterations with abs. feas. error = 7.11e-07
 
@@ -134,7 +134,7 @@ _**Run:**_ `python3 ./main.py --freq=20 --prev_solution_file=./solution_20hz_v1.
 
 #### Step 3: 40Hz feasible solution, with same constraints:
 
-_**Run:**_ `python3 ./main.py --freq=40 --prev_solution_file=./solution_20hz_v2.bin --interp_factor=2`
+_**Run:**_ `python3 ./src/main.py --freq=40 --prev_solution_file=./solution_20hz_v2.bin --interp_factor=2`
 
 > This converges in 1456 iterations with abs. feas. error = 5.44e-04
 
@@ -142,7 +142,7 @@ _**Run:**_ `python3 ./main.py --freq=40 --prev_solution_file=./solution_20hz_v2.
 
 #### Step 4: 80Hz feasible solution, with same constraints as previous solution:
 
-_**Run:**_ `python3 ./main.py --freq=80 --prev_solution_file=./solution_40hz.bin --interp_factor=2 && mv solution_80hz.bin solution_80hz_v1.bin`
+_**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_40hz.bin --interp_factor=2 && mv solution_80hz.bin solution_80hz_v1.bin`
 
 > This *does not* meet the final feasibility tolerance, stopping after 1485 iterations with abs. error = 1.89e-01. However, the trajectory produced **is still a good initial guess** for the next step.
 
@@ -156,7 +156,7 @@ _Under tasks `BackflipLaunch` and `BackflipLand`:_
 _Under `robot.py`:_
 1. Set `self.τ_norm_max = 8.0` to enable the torque norm limit
 
-_**Run:**_ `python3 ./main.py --freq=80 --prev_solution_file=./solution_80hz_v1.bin && mv solution_80hz.bin solution_80hz_v2.bin`
+_**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_80hz_v1.bin && mv solution_80hz.bin solution_80hz_v2.bin`
 
 > This *does not* meet the final feasibility tolerance. Stops after 1732 iterations with abs. error = 2.075e-03.
 
@@ -167,7 +167,7 @@ _**Run:**_ `python3 ./main.py --freq=80 --prev_solution_file=./solution_80hz_v1.
 _With the previous solution as the initial guess, restarting the optimization results in a trajectory
 that meets the required feasibility threshold._
 
-_**Run:**_ `python3 ./main.py --freq=80 --prev_solution_file=./solution_80hz_v2.bin --hdf5_file=backflip_v4.hdf5 && mv solution_80hz.bin solution_80hz_v3.bin`
+_**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_80hz_v2.bin --hdf5_file=backflip_v4.hdf5 && mv solution_80hz.bin solution_80hz_v3.bin`
 
 > Converges after 463 iterations with feas. error = 5.34e-04 and final objective = 2.82148241260696e+00.
 

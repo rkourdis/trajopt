@@ -8,7 +8,7 @@ from pinocchio import casadi as cpin
 
 class Solo12:
     def _load_robot(self):
-        pkg_path = os.path.dirname(__file__)
+        pkg_path = os.path.join(os.path.dirname(__file__), "..")
         urdf_path = os.path.join(pkg_path, "example-robot-data/robots/solo_description/robots/solo12.urdf")
 
         # Load full URDF. This creates a RobotWrapper containing the read-only model and runtime data:

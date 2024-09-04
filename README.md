@@ -6,7 +6,7 @@ This is a trajectory optimization program written as a learning exercise to gene
 <img src="assets/crashed_bot.jpg" width="300"/>
 </p>
 
-### **Spoiler:** [It backflips.](#backflip)
+#### **Spoiler:** [It backflips.](#backflip) 🤸
 
 ## Capabilities
 

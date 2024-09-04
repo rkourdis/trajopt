@@ -6,6 +6,8 @@ This is a trajectory optimization program written as a learning exercise to gene
 <img src="assets/crashed_bot.jpg" width="300"/>
 </p>
 
+### **Spoiler:** [It backflips.](#backflip)
+
 ## Capabilities
 
 With this framework, you can generate agile motions such as:
@@ -177,6 +179,6 @@ _**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_80hz
 _The output file `backflip_v4.hdf5` contains torques, joint positions and velocities and can be executed on the Solo-12 hardware._
 
 ### Improvements
-- Implicit contact time optimization - write the optimization problem as an LCP
+- Implicit contact time optimization - optimization problem as an LCP
 - Better initial guess generation - maybe optimize a guess with the torso as a single rigid body?
 - Better interface for toggling constraints / objectives via the CLI

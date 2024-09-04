@@ -14,7 +14,7 @@ With this framework, you can generate agile motions such as:
 |---|---|---|---|
 | <img src="assets/get_up.gif" alt="robot gets up" style="width:220px;"/> | <img src="assets/jump_in_place.gif" alt="robot jumps in place" style="width:220px;"/> | <img src="assets/double_jump.gif" alt="robot jumps forward and backward" style="width:220px;"/> | <img src="assets/backflip.gif" alt="robot backflips" style="width:220px;"/> |
 
-The task descriptions for each of these trajectories are included in [`tasks.py`](tasks.py).
+The task descriptions for each of these trajectories are included in [`tasks.py`](src/tasks.py).
 
 Currently, only the [Solo12](https://github.com/open-dynamic-robot-initiative/open_robot_actuator_hardware/blob/master/mechanics/quadruped_robot_12dof_v1/README.md) quadruped is supported, however, the code can be extended to support different robots.
 
@@ -23,9 +23,9 @@ Features:
 
 - **Simultaneous subproblem solving and stitching**: A trajectory can be defined and solved in multiple parts connected by (optional) continuity constraints
 
-- **Easy trajectory constraint description**: A task can define constraints on torques, state, velocities, and frame placements and it's simple to add new ones
+- **Easy trajectory constraint description**: A task can define constraints on torques, state, velocities, and frame placements and new ones can be simply added
 
-- **Loading of a solution as an initial guess**: A low frequency solution can be interpolated via simple knot repetition and provided as an initial guess to a higher frequency problem
+- **Previous solution initial guess**: A low frequency solution can be interpolated via simple knot repetition and provided as an initial guess to a higher frequency problem
 
 - **HDF5 export**: A trajectory can be exported to .hdf5 to be executed on hardware (using [solo12_tools](https://github.com/rkourdis/solo12_tools))
 
@@ -66,7 +66,7 @@ Make sure to fetch the robot model after cloning:
 git submodule update --recursive --init
 ```
 
-Example task descriptions can be found in [`tasks.py`](tasks.py). An optimization problem needs to be defined by providing a task and continuity info under [`main.py`](main.py).
+Example task descriptions can be found in [`tasks.py`](src/tasks.py). An optimization problem needs to be defined by providing task and continuity info under [`main.py`](src/main.py).
 
 **To start the optimization with a discretisation frequency of 20Hz:** `python3 ./src/main.py --freq=20`.
 
@@ -97,11 +97,9 @@ An additional PD controller tracking the reference joint angles and velocities i
 
 To generate the backflip I've performed on my Solo-12 (`trajectories/backflip_v4/backflip_v4.hdf5`) a more involved process is required.
 
-<p align="center">
-<video src="assets/backflip_small.mp4" width="250"/>
-</p>
+https://github.com/user-attachments/assets/cc01dda4-99c6-46f2-be99-1b2db49bf93e
 
-This is because the overall high-frequency optimization problem is difficult, so a series of better and better initial guesses need to be used.
+This is because the full high-frequency optimization problem is difficult, so a series of better and better initial guesses need to be used.
 
 **In each optimization we either _upscale_ the previous solution to be used as the initial guess (via simple knot repetition) or _use it as-is_.**
 
@@ -175,7 +173,7 @@ _**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_80hz
 
 _The output file: `backflip_v4.hdf5`, contains torques, joint positions and velocities and can be executed on the Solo-12 hardware:_
 
-### Improvement Ideas
+### Improvements
 - Implicit contact time optimization - write the optimization problem as an LCP
 - Better initial guess generation - maybe optimize a guess with the torso as a single rigid body?
 - Better interface for toggling constraints / objectives via the CLI

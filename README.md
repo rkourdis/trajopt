@@ -33,7 +33,7 @@ Features:
 
 One day, I asked myself:
 
-> _If Boston Dynamics can make their robots do backflips, why can't I?_ 🤔
+_"If Boston Dynamics can make their robots do backflips, why can't I?"_ 🤔
 
 ... so I set out to build a quadruped 🤖. A few months later, with the quadruped at hand, I still had no clue _how_ to do the backflip.
 
@@ -58,7 +58,7 @@ Rigid Bodies Through Contact`](https://groups.csail.mit.edu/robotics-center/publ
 
 - [Pinocchio 3](https://github.com/stack-of-tasks/pinocchio) for differentiable robot dynamics, along with dependencies included in [BUILD_PIN3.txt](dependencies/BUILD_PIN3.txt) (**Note:** Code only works on branch `pinocchio3-preview`, commit `97f40f9`)
 
-- A license for the [Artelys Knitro](https://www.artelys.com/solvers/knitro/) optimizer (**Note:** Code has been tested with v14.0.0 only)
+- A license for the [Artelys Knitro](https://www.artelys.com/solvers/knitro/) optimizer (**Note:** Only tested with v14.0.0)
 
 Make sure to fetch the robot model after cloning:
 
@@ -66,23 +66,25 @@ Make sure to fetch the robot model after cloning:
 git submodule update --recursive --init
 ```
 
-Example task descriptions can be found in [`tasks.py`](src/tasks.py). An optimization problem needs to be defined by providing task and continuity info under [`main.py`](src/main.py).
+Example task descriptions can be found under [`tasks.py`](src/tasks.py). An optimization problem needs to be defined by providing task and continuity info in [`main.py`](src/main.py).
 
-**To start the optimization with a discretisation frequency of 20Hz:** `python3 ./src/main.py --freq=20`.
+- **To start the optimization with a discretization frequency of 20Hz:** `python3 ./src/main.py --freq=20`.
 
-**To visualise the solution:** `python3 ./src/main.py --freq=20 --visualize_file=./solution_20hz.bin`.
+- **To visualise the solution:** `python3 ./src/main.py --freq=20 --visualize_file=./solution_20hz.bin`.
 
 ## Algorithm Description
 
 To generate a robot trajectory, this code uses the **Direct Transcription** method.
 
 #### Transcription
-Loosely described; robot state, velocity, acceleration and system input (torques) are discretized in time. Decision variables are created for each timestep ("knot"). Constraints such as torque limits, desired torso orientation, etc. _are enforced directly on these decision variables_.
+Loosely described: robot state, velocity, acceleration and system input (torques) are discretized in time. Decision variables are created for each timestep ("knot"). Constraints such as torque limits, desired torso orientation, etc. _are enforced directly on these decision variables_.
 
 The decision variables of a knot are connected to the variables of the knot before and after by robot physics, contact dynamics and an integration scheme. These are written as additional variable constraints.
 
 #### Optimization Objective
 An optimization problem is defined _for all decision variables_ by defining a metric to be minimized. A common choice is to minimize the overall trajectory energy. The metric could even be set constant so that the solver searches for _any_ feasible solution.
+
+**_The variables, constraints and objective define a Non Linear Program (NLP) the solution to which is a robot trajectory._**
 
 #### Contacts
 
@@ -91,7 +93,7 @@ Contacts are handled explicitly. The times that each foot is on the ground are _
 #### Output & Execution
 The problem solution contains joint inputs required to achieve the optimized trajectory. The system state at every point is also included. The input torques for each joint can be sent to the robot for execution.
 
-An additional PD controller tracking the reference joint angles and velocities is used in practice. This ensures that small modelling discrepances do not result in large deviations between the expected and actual trajectory.
+An additional PD controller tracking the reference joint angles and velocities is used in practice. This ensures that small modelling discrepances do not result in large deviations between the desired and actual trajectory.
 
 ## Backflip
 
@@ -101,7 +103,7 @@ https://github.com/user-attachments/assets/cc01dda4-99c6-46f2-be99-1b2db49bf93e
 
 This is because the full high-frequency optimization problem is difficult, so a series of better and better initial guesses need to be used.
 
-**In each optimization we either _upscale_ the previous solution to be used as the initial guess (via simple knot repetition) or _use it as-is_.**
+**_In each optimization we either upscale the previous solution (via simple knot repetition) and use it as the initial guess  or _use it as-is_._**
 
 #### Step 1: 20Hz feasible solution from standing guess, with relaxed constraints:
 
@@ -171,7 +173,8 @@ _**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_80hz
 
 ---
 
-_The output file: `backflip_v4.hdf5`, contains torques, joint positions and velocities and can be executed on the Solo-12 hardware:_
+
+_The output file `backflip_v4.hdf5` contains torques, joint positions and velocities and can be executed on the Solo-12 hardware._
 
 ### Improvements
 - Implicit contact time optimization - write the optimization problem as an LCP

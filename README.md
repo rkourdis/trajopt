@@ -1,12 +1,14 @@
 # Quadruped Trajectory Optimization
 
-This is a trajectory optimization program written as a learning exercise to generate agile motions for my [home-built Solo-12 quadruped](https://odri.discourse.group/t/youre-building-an-odri-robot-tell-us-about-it/533/13):
+This is a trajectory optimization program written to generate agile motions for my [home-built Solo-12 quadruped](https://odri.discourse.group/t/youre-building-an-odri-robot-tell-us-about-it/533/13):
 
-<p align="center">
+<div align="center">
+
 <img src="assets/crashed_bot.jpg" width="300"/>
-</p>
+ 
+### Spoiler: <ins>[It backflips.](#backflip)</ins>🤸
 
-#### **Spoiler:** [It backflips.](#backflip) 🤸
+</div>
 
 ## Capabilities
 
@@ -101,12 +103,17 @@ An additional PD controller tracking the reference joint angles and velocities i
 
 To generate the backflip I've performed on my Solo-12 (`trajectories/backflip_v4/backflip_v4.hdf5`) a more involved process is required.
 
+<div align="center">
+
 https://github.com/user-attachments/assets/cc01dda4-99c6-46f2-be99-1b2db49bf93e
+
+</div>
 
 This is because the full high-frequency optimization problem is difficult, so a series of better and better initial guesses need to be used.
 
 **_In each optimization we either upscale the previous solution (via simple knot repetition) and use it as the initial guess  or _use it as-is_._**
 
+---
 #### Step 1: 20Hz feasible solution from standing guess, with relaxed constraints:
 
 _Under tasks `BackflipLaunch` and `BackflipLand`:_
@@ -178,7 +185,7 @@ _**Run:**_ `python3 ./src/main.py --freq=80 --prev_solution_file=./solution_80hz
 
 _The output file `backflip_v4.hdf5` contains torques, joint positions and velocities and can be executed on the Solo-12 hardware._
 
-### Improvements
+## Improvements
 - Implicit contact time optimization - optimization problem as an LCP
 - Better initial guess generation - maybe optimize a guess with the torso as a single rigid body?
 - Better interface for toggling constraints / objectives via the CLI

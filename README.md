@@ -101,14 +101,13 @@ An additional PD controller tracking the reference joint angles and velocities i
 
 ## Backflip
 
-To generate the backflip I've performed on my Solo-12 (`trajectories/backflip_v4/backflip_v4.hdf5`) a more involved process is required.
-
 <div align="center">
 
 https://github.com/user-attachments/assets/cc01dda4-99c6-46f2-be99-1b2db49bf93e
 
 </div>
 
+To generate the backflip I've performed on my Solo-12 (`trajectories/backflip_v4/backflip_v4.hdf5`) a multi-step process is required.
 This is because the full high-frequency optimization problem is difficult, so a series of better and better initial guesses need to be used.
 
 **_In each optimization we either upscale the previous solution (via simple knot repetition) and use it as the initial guess  or _use it as-is_._**

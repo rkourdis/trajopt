@@ -17,7 +17,7 @@ def solve(problem: Problem) -> Solution:
         "bar_murule":       knitro.KN_BAR_MURULE_ADAPTIVE,
         "linsolver":        knitro.KN_LINSOLVER_MA57,
         "feastol":          1e-3,
-        "ftol":             1e-4,
+        "ftol":             1e-2,
         "presolve_level":   knitro.KN_PRESOLVE_ADVANCED,
         # "bar_feasible": knitro.KN_BAR_FEASIBLE_GET_STAY,
         # "ms_enable":    True,
@@ -28,6 +28,7 @@ def solve(problem: Problem) -> Solution:
 
     vars, v_lb, v_ub    = problem.variables
     c_exprs, c_lb, c_ub = problem.constraints
+    complementarities   = problem.complementarities
 
     solver = ca.nlpsol(
         "S",
@@ -36,8 +37,9 @@ def solve(problem: Problem) -> Solution:
         {
             # "verbose": True,
             "knitro": knitro_settings,
-            "complem_variables": problem.complementarities
+            **({"complem_variables": complementarities} if len(complementarities) > 0 else {})
         }
+            
     )
 
     print("Starting solver...")

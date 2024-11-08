@@ -290,10 +290,10 @@ JumpTaskBwd: Task = Task(
 LR_Symmetry_Constraints = lambda kv, **kwargs: [
     Constraint(kv.q[kwargs["solo"].q_off("FR_KFE")] - kv.q[kwargs["solo"].q_off("FL_KFE")]),
     Constraint(kv.q[kwargs["solo"].q_off("FR_HFE")] - kv.q[kwargs["solo"].q_off("FL_HFE")]),
-    Constraint(kv.q[kwargs["solo"].q_off("FR_HAA")] - kv.q[kwargs["solo"].q_off("FL_HAA")]),
+    Constraint(kv.q[kwargs["solo"].q_off("FR_HAA")] + kv.q[kwargs["solo"].q_off("FL_HAA")]),
     Constraint(kv.q[kwargs["solo"].q_off("HR_KFE")] - kv.q[kwargs["solo"].q_off("HL_KFE")]),
     Constraint(kv.q[kwargs["solo"].q_off("HR_HFE")] - kv.q[kwargs["solo"].q_off("HL_HFE")]),
-    Constraint(kv.q[kwargs["solo"].q_off("HR_HAA")] - kv.q[kwargs["solo"].q_off("HL_HAA")]),
+    Constraint(kv.q[kwargs["solo"].q_off("HR_HAA")] + kv.q[kwargs["solo"].q_off("HL_HAA")]),
 ]
 
 # HFE joints are rotationally limited to avoid a cable getting twisted. These constraints

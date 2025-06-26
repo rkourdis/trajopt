@@ -6,41 +6,20 @@ import numpy as np
 import casadi as ca
 
 from tasks import Task
-from robot import Solo12
+from robot import LeggedRobot
 from constraints import *
 from guesses import GuessOracle
-from variables import CollocationVars
 from utilities import integrate_state
 from dynamics import ADForwardDynamics
 from kinematics import ADFrameKinematics
-
-@dataclass(frozen = True)
-# Struct that holds information about a transcribed subproblem.
-# We'll store this alongside the global solution vector when the
-# optimizer completes. This way we can load, visualize and execute a
-# solution without needing to transcribe exactly the same problem again. 
-class TranscriptionInfo:
-    subproblem_name: str
-    
-    # The number of decision variables per knot should be constant and
-    # not depend on the task being solved (excl. slack variables):
-    n_knots: int
-
-    # Discretization Δt, for trajectory execution and visualization:
-    dt: float
-
-    # Slack variable count (at the end of the variable vector):
-    slack_var_count: int
-
-    # Other auxiliary info:
-    description: Optional[str] = None
+from variables import CollocationVars, TranscriptionInfo
 
 @dataclass
 class Subproblem:
     name:           str
     task:           Task
     freq_hz:        Fraction
-    robot:          Solo12
+    robot:          LeggedRobot
     guess_oracle:   GuessOracle
 
     dvars:          CollocationVars[ca.SX]   = field(init = False)
@@ -71,10 +50,11 @@ class Subproblem:
 
     def _create_vars(self) -> None:
         for k in range(self.n_knots):
-            self.dvars.q_k.append(ca.SX.sym(f"{self.name}_q_{k}", self.robot.cmodel.nq - 1))         # 18 x 1 (floating base MRP)
-            self.dvars.v_k.append(ca.SX.sym(f"{self.name}_v_{k}", self.robot.cmodel.nv))             # 18 x 1
-            self.dvars.a_k.append(ca.SX.sym(f"{self.name}_a_{k}", self.robot.cmodel.nv))             # 18 x 1
-            self.dvars.τ_k.append(ca.SX.sym(f"{self.name}_τ_{k}", len(self.robot.actuated_joints)))  # 12 x 1 
+            # NOTE: Example matrix dimensions for Solo12:
+            self.dvars.q_k.append(ca.SX.sym(f"{self.name}_q_{k}", self.robot.cmodel.nq - 1))                   # 18 x 1 (floating base MRP)
+            self.dvars.v_k.append(ca.SX.sym(f"{self.name}_v_{k}", self.robot.cmodel.nv))                       # 18 x 1
+            self.dvars.a_k.append(ca.SX.sym(f"{self.name}_a_{k}", self.robot.cmodel.nv))                       # 18 x 1
+            self.dvars.τ_k.append(ca.SX.sym(f"{self.name}_τ_{k}", len(self.robot.actuated_joints)))            # 12 x 1 
             self.dvars.λ_k.append(ca.SX.sym(f"{self.name}_λ_{k}", len(self.robot.frames["feet"]), 3))          # 4  x 3
             self.dvars.f_pos_k.append(ca.SX.sym(f"{self.name}_f_pos_{k}", len(self.robot.frames["feet"]), 3))  # 4  x 3
 
@@ -156,45 +136,46 @@ class Subproblem:
                 fp_prev = self.dvars.f_pos_k[k-1][foot_idx, :]
                 self.constraints.append(Constraint(fp[:2] - fp_prev[:2]))
 
-            # 4. Make sure the tangential contact force lies in the friction cone.
-            #    We will achieve this by adding the following constraints:
-            #       fabs(λ_x) <= μ * λ_z  and  fabs(λ_y) <= μ * λ_z
-            #    This is a pyramidal approximation of the friction cone.
-            #    The fabs(.) operation introduces derivative discontinuity in the 
-            #    constraints and makes optimization difficult. We will reformulate
-            #    the constraints using complementary slack variables to remove
-            #    that discontinuity:
-            #       If x = x_pos - x_neg and 0 =< x_pos \perp x_neg >= 0,
-            #       then |x| = x_pos + x_neg.
-            λ_xy_pos = ca.SX.sym(f"{self.name}_λxy_pos_{foot_idx}_{k}", 2)
-            λ_xy_neg = ca.SX.sym(f"{self.name}_λxy_neg_{foot_idx}_{k}", 2)
+            if μ != ca.inf:
+                # 4. Make sure the tangential contact force lies in the friction cone.
+                #    We will achieve this by adding the following constraints:
+                #       fabs(λ_x) <= μ * λ_z  and  fabs(λ_y) <= μ * λ_z
+                #    This is a pyramidal approximation of the friction cone.
+                #    The fabs(.) operation introduces derivative discontinuity in the 
+                #    constraints and makes optimization difficult. We will reformulate
+                #    the constraints using complementary slack variables to remove
+                #    that discontinuity:
+                #       If x = x_pos - x_neg and 0 =< x_pos \perp x_neg >= 0,
+                #       then |x| = x_pos + x_neg.
+                λ_xy_pos = ca.SX.sym(f"{self.name}_λxy_pos_{foot_idx}_{k}", 2)
+                λ_xy_neg = ca.SX.sym(f"{self.name}_λxy_neg_{foot_idx}_{k}", 2)
 
-            self.dvars.slack_vars.extend([λ_xy_pos, λ_xy_neg])
+                self.dvars.slack_vars.extend([λ_xy_pos, λ_xy_neg])
 
-            # 0 =< λ_xy_pos[:] \perp λ_xy_neg[:] >= 0:
-            self.constraints.extend([
-                Bound(λ_xy_pos, lb = 0.0, ub = ca.inf),
-                Bound(λ_xy_neg, lb = 0.0, ub = ca.inf),
-                Complementarity(λ_xy_pos[0].name(), λ_xy_neg[0].name()),
-                Complementarity(λ_xy_pos[1].name(), λ_xy_neg[1].name()),
-            ])
+                # 0 =< λ_xy_pos[:] \perp λ_xy_neg[:] >= 0:
+                self.constraints.extend([
+                    Bound(λ_xy_pos, lb = 0.0, ub = ca.inf),
+                    Bound(λ_xy_neg, lb = 0.0, ub = ca.inf),
+                    Complementarity(λ_xy_pos[0].name(), λ_xy_neg[0].name()),
+                    Complementarity(λ_xy_pos[1].name(), λ_xy_neg[1].name()),
+                ])
 
-            # λ_xy = λ_xy_pos - λ_xy_neg:
-            self.constraints.append(Constraint(λ[:2].T - (λ_xy_pos - λ_xy_neg)))
+                # λ_xy = λ_xy_pos - λ_xy_neg:
+                self.constraints.append(Constraint(λ[:2].T - (λ_xy_pos - λ_xy_neg)))
 
-            # fabs(λ_xy) <= λ_z * μ:
-            # NOTE: In this case, the complementarity constraint isn't strictly
-            #       required, as λ_xy_pos + λ_xy_neg >= |λ_xy| always (triangle inequality).
-            #       Therefore, if λ_xy_pos + λ_xy_neg is below the friction limit, then |λ_xy|
-            #       must be as well. If the solver needs more tangential force, it should
-            #       figure out that it can get maximum by setting one of the variables to zero.
-            #       However, adding the constraint seems to help convergence speed in practice.
-            self.constraints.append(
-                Constraint(
-                    ca.repmat(μ * λ[2], 2) - (λ_xy_pos + λ_xy_neg),
-                    lb = 0.0, ub = ca.inf
+                # fabs(λ_xy) <= λ_z * μ:
+                # NOTE: In this case, the complementarity constraint isn't strictly
+                #       required, as λ_xy_pos + λ_xy_neg >= |λ_xy| always (triangle inequality).
+                #       Therefore, if λ_xy_pos + λ_xy_neg is below the friction limit, then |λ_xy|
+                #       must be as well. If the solver needs more tangential force, it should
+                #       figure out that it can get maximum by setting one of the variables to zero.
+                #       However, adding the constraint seems to help convergence speed in practice.
+                self.constraints.append(
+                    Constraint(
+                        ca.repmat(μ * λ[2], 2) - (λ_xy_pos + λ_xy_neg),
+                        lb = 0.0, ub = ca.inf
+                    )
                 )
-            )
 
         # Add constraints for all feet:
         for foot_idx in range(len(self.robot.frames["feet"])):
@@ -237,7 +218,7 @@ class Subproblem:
 
             for k in range(int(t_s / self.dt), int(t_e / self.dt) + 1):
                 kvars = self.dvars.get_vars_at_knot(k)
-                self.constraints.extend(get_constr(kvars, solo = self.robot, fk = self.fk))
+                self.constraints.extend(get_constr(kvars, robot = self.robot, fk = self.fk))
 
         # Create expression for the scalar problem objective:
         self.objective = ca.SX.zeros(1)
@@ -256,6 +237,11 @@ class Subproblem:
             subproblem_name     = self.name,
             n_knots             = self.n_knots,
             dt                  = float(self.dt),
+
+            nq                  = self.robot.cmodel.nq - 1,     # Use MRP for orientation
+            nv                  = self.robot.cmodel.nv,
+            nτ                  = len(self.robot.actuated_joints),
+            feet_count          = len(self.robot.frames["feet"]),
 
             slack_var_count     = sum(
                                     sv.shape[0] * sv.shape[1]

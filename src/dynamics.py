@@ -1,7 +1,7 @@
 import casadi as ca
 from pinocchio import casadi as cpin
 
-from robot import Solo12
+from robot import LeggedRobot
 from utilities import q_mrp_to_quat
 
 # Autodiff forward dynamics using CasADi.
@@ -9,7 +9,7 @@ from utilities import q_mrp_to_quat
 # calculates state acceleration using the Articulated Body Algorithm.
 # The foot GRFs are expressed in each foot's local world-aligned frame.
 class ADForwardDynamics():
-    def __init__(self, robot: Solo12):
+    def __init__(self, robot: LeggedRobot):
         self.robot = robot
         self.cmodel, self.cdata = robot.cmodel, robot.cdata
 

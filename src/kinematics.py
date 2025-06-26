@@ -1,13 +1,13 @@
 import casadi as ca
 from pinocchio import casadi as cpin
 
-from robot import Solo12
+from robot import LeggedRobot
 from utilities import q_mrp_to_quat
 
 # Autodiff frame kinematics using CasADi.
 # Calculates frame placements at the provided robot state:
 class ADFrameKinematics():
-    def __init__(self, robot: Solo12):
+    def __init__(self, robot: LeggedRobot):
         self.cmodel, self.cdata = robot.cmodel, robot.cdata
 
         self.frame_ids = {

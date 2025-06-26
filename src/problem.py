@@ -41,7 +41,10 @@ class Problem:
         for idx, subp in enumerate(self.subproblems):
             if subp.name in transcribed_subps:
                 raise RuntimeError("Problem can't contain a duplicate subproblem name!")
-            
+
+            if subp.task.robot_type != type(subp.robot):
+                raise RuntimeError(f"Problem set up for {type(subp.robot)} robot but task targets {subp.task.robot_type}!")
+
             print(f"Transcribing subproblem '{subp.name}' using {subp.n_knots} knots...")
 
             subp.transcribe(is_subsequent = (idx > 0))
@@ -190,10 +193,7 @@ class Problem:
         for info in soln.transcription_infos:
             # Load variables for each subproblem, starting at the
             # current solution vector offset:
-            subp_soln, var_count = CollocationVars[np.ndarray].unflatten(
-                info.n_knots, info.slack_var_count, info.dt, vec[cur_vec_offset:]
-            )
-
+            subp_soln, var_count = CollocationVars[np.ndarray].unflatten(info, vec[cur_vec_offset:])
             subp_solns.append(subp_soln)
 
             # Increase offset in the global vector for the next subproblem:

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TypeVar, Generic, Any
+from typing import TypeVar, Generic, Any, Optional
 
 from utilities import flatten_mats, unflatten_mats
 
@@ -9,6 +9,33 @@ T = TypeVar('T')
 class KnotVars(Generic[T]):
     # Helper struct to hold all variables for a single knot:
     q: T; v: T; a: T; τ: T; λ: T; f_pos: T
+
+@dataclass(frozen = True)
+# Struct that holds information about a transcribed subproblem.
+# We'll store this alongside the global solution vector when the
+# optimizer completes. This way we can load, visualize and execute a
+# solution without needing to transcribe exactly the same problem again. 
+class TranscriptionInfo:
+    subproblem_name: str
+    
+    # The number of decision variables per knot should be constant and
+    # not depend on the task being solved (excl. slack variables):
+    n_knots: int
+
+    # Discretization Δt, for trajectory execution and visualization:
+    dt: float
+
+    # Information about the robot's state and action space:
+    nq:         int
+    nv:         int
+    nτ:         int
+    feet_count: int
+
+    # Slack variable count (at the end of the variable vector):
+    slack_var_count: int
+
+    # Other auxiliary info:
+    description: Optional[str] = None
 
 @dataclass
 class CollocationVars(Generic[T]):
@@ -70,34 +97,35 @@ class CollocationVars(Generic[T]):
     # Load trajectory and slack variables from a flattened column vector.
     # We assume that all knots are of equal time duration.
     # Return the variables as well as the total variable count:
-    def unflatten(n_knots: int, slack_var_count: int, duration: float, vec: T) -> tuple[Any, int]:
+    # n_knots: int, slack_var_count: int, duration: float
+    def unflatten(info: TranscriptionInfo, vec: T) -> tuple[Any, int]:
         assert vec.shape[1] == 1
 
-        dvars = CollocationVars[T](n_knots = n_knots)
-        dvars.knot_duration = [duration] * n_knots
+        dvars = CollocationVars[T](n_knots = info.n_knots)
+        dvars.knot_duration = [info.dt] * info.n_knots
 
         # Unflatten trajectory variables:
-        o, sz = 0, 18
-        dvars.q_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
+        o, sz = 0, info.nq
+        dvars.q_k = unflatten_mats(vec[o : o + info.n_knots * sz], (sz, 1))
 
-        o, sz = o + sz * n_knots, 18
-        dvars.v_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
+        o, sz = o + sz * info.n_knots, info.nv
+        dvars.v_k = unflatten_mats(vec[o : o + info.n_knots * sz], (sz, 1))
 
-        o, sz = o + sz * n_knots, 18
-        dvars.a_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
+        o, sz = o + sz * info.n_knots, info.nv
+        dvars.a_k = unflatten_mats(vec[o : o + info.n_knots * sz], (sz, 1))
 
-        o, sz = o + sz * n_knots, 12
-        dvars.τ_k = unflatten_mats(vec[o : o + n_knots * sz], (sz, 1))
+        o, sz = o + sz * info.n_knots, info.nτ
+        dvars.τ_k = unflatten_mats(vec[o : o + info.n_knots * sz], (sz, 1))
 
-        o, sz = o + sz * n_knots, 4 * 3
-        dvars.λ_k = unflatten_mats(vec[o : o + n_knots * sz], (4, 3))
+        o, sz = o + sz * info.n_knots, info.feet_count * 3
+        dvars.λ_k = unflatten_mats(vec[o : o + info.n_knots * sz], (info.feet_count, 3))
 
-        o, sz = o + sz * n_knots, 4 * 3
-        dvars.f_pos_k = unflatten_mats(vec[o : o + n_knots * sz], (4, 3))
+        o, sz = o + sz * info.n_knots, info.feet_count * 3
+        dvars.f_pos_k = unflatten_mats(vec[o : o + info.n_knots * sz], (info.feet_count, 3))
 
         # Load slack variables as a single column vector:
-        o += sz * n_knots
-        dvars.slack_vars = [ vec[o : o + slack_var_count] ]
+        o += sz * info.n_knots
+        dvars.slack_vars = [ vec[o : o + info.slack_var_count] ]
 
-        o += slack_var_count
+        o += info.slack_var_count
         return dvars, o

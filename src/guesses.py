@@ -1,10 +1,11 @@
 import numpy as np
 import casadi as ca
+import pinocchio as pin
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from tasks import Task
-from robot import Solo12
+from robot import LeggedRobot
 import utilities as utils
 from poses import load_robot_pose, Pose
 from kinematics import ADFrameKinematics
@@ -12,7 +13,7 @@ from variables import KnotVars, CollocationVars
 
 @dataclass
 class GuessOracle(ABC):
-    robot: Solo12
+    robot: LeggedRobot
     task: Task      = None
 
     @abstractmethod
@@ -21,11 +22,11 @@ class GuessOracle(ABC):
         pass
 
 @dataclass
-# Returns a static standing pose:
-class StandingGuess(GuessOracle):
+# Returns a static standing pose for the Solo12:
+class SoloStandingGuess(GuessOracle):
     def __post_init__(self):
         # Load pose from pickled closed-form (accel = 0) solution:
-        self.q, self.v, self.τ, self.λ = load_robot_pose(Pose.STANDING_V)
+        self.q, self.v, self.τ, self.λ = load_robot_pose(Pose.SOLO_STANDING_V)
 
         # Do FK to calculate feet positions:
         q_sym = ca.SX.sym("q_sym", self.q.shape)
@@ -39,6 +40,41 @@ class StandingGuess(GuessOracle):
             np.copy(self.q), np.copy(self.v), np.zeros(self.v.shape),
             np.copy(self.τ), np.copy(self.λ), np.copy(self.f_pos)
         )
+
+@dataclass
+class EmptyGuess(GuessOracle):
+    def __post_init__(self):
+        self.q = np.zeros((self.robot.cmodel.nq - 1, 1))
+        self.v = np.zeros((self.robot.cmodel.nv, 1))
+        self.a = np.zeros((self.robot.cmodel.nv, 1))
+        self.τ = np.zeros((len(self.robot.actuated_joints), 1))
+
+        # Do FK to calculate feet positions:
+        q_sym = ca.SX.sym("q_sym", self.q.shape)
+        ad_fk = ADFrameKinematics(self.robot)
+        num_fk = ca.Function("num_fk", [q_sym], [ad_fk(q_sym)["feet"]])
+
+        self.f_pos = utils.ca_to_np(num_fk(self.q))
+
+        # Spread weight of robot to all legs:
+        pin.crba(
+            self.robot.robot.model,
+            self.robot.robot.data,
+            utils.ca_to_np(utils.q_mrp_to_quat(self.q))
+        )
+
+        m = list(self.robot.robot.data.mass)[0]
+        feet = len(self.robot.frames["feet"])
+
+        self.λ = np.zeros((feet, 3))
+        self.λ[:, 2] = m * 9.81 / feet
+
+    def guess(self, _: int) -> KnotVars:
+        return KnotVars(
+            np.copy(self.q), np.copy(self.v), np.copy(self.a),
+            np.copy(self.τ), np.copy(self.λ), np.copy(self.f_pos)
+        )
+
 
 # Returns a previous subproblem trajectory as an initial guess.
 # If `interp_factor` is set, the trajectory will be interpolated

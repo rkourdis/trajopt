@@ -21,10 +21,11 @@ def visualise_solution(filename: str, robot: LeggedRobot):
         print(f"Knot: {k}, duration: {int(dt * 1e+3)}ms")
         robot.robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
         
-        # np.set_printoptions(precision=3, suppress=True)
+        np.set_printoptions(precision=4, suppress=True)
         # print(q_mrp[robot.q_off("FR_HFE")])
-        # print(q_mrp)
-        # print(v)
+        print(q_mrp.T)
+        print(v.T)
+        print(list(robot.robot.model.names))
         # print()
         time.sleep(dt)
         

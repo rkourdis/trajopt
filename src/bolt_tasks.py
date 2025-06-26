@@ -111,3 +111,38 @@ Squat: Task = Task(
         )
     ],
 )
+
+# Find a stable configuration for the robot to balance that is as close
+# as possible to the sitting one:
+Stable: Task = Task(
+    robot_type = Bolt,
+    duration = F("0.4"),
+
+    # ||q_joints - BOLT_SITTING_JOINT_MAP||_2
+    traj_error = lambda t, kvars: \
+        ca.norm_2(kvars.q[6:] - np.expand_dims(np.array([0, 0, 0, 0, 0, 0, 0, np.pi/4, -np.pi/2, 0, np.pi/4, -np.pi/2]), axis=0).T[6:])**2,
+
+    # Feet always in contact:
+    contact_periods = {
+        # NOTE: We add ε at the end of the intervals as .overlaps() is
+        # not inclusive of the end time:
+        foot: ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.4") + frac_ε)])
+        for foot in ["FR_FOOT", "FL_FOOT"]
+    },
+
+    task_constraints = [
+        (
+            TimePeriod(F("0.0"), end = None),
+            lambda kv, **kwargs: [
+                # XY = 0:
+                Bound(kv.q[:2]),
+
+                # Orientation = 0:
+                Bound(kv.q[3:6]),
+                
+                # No movement along the entire trajectory:
+                Bound(kv.v),
+            ] + LR_Symmetry_Constraints(kv, **kwargs),
+        )
+    ],
+)

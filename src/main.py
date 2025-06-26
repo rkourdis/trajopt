@@ -29,27 +29,14 @@ if __name__ == "__main__":
     robot = Bolt(visualize = bool(opts.visualize_file))
     # robot = Bolt(visualize = True)
 
-    # print(robot)
-    # print(list(robot.robot.model.joints))
-    # print(list(robot.robot.model.names))
-    # print(robot.cmodel.nq)
-    # print(robot.actuated_joints)
-    
-    # import pinocchio as pin
-    # q0 = np.zeros((robot.robot.model.nq - 1, 1))
-
-    # q0[robot.q_off("FR_HFE")] = +np.pi/4
-    # q0[robot.q_off("FL_HFE")] = +np.pi/4
-
-    # q0[robot.q_off("FR_KFE")] = -np.pi/2
-    # q0[robot.q_off("FL_KFE")] = -np.pi/2
-
     # import utilities as utils
     # from configurations import *
     # q = create_state_vector(robot.robot, BOLT_SITTING_JOINT_MAP)
 
-    # q[4] = -0.03
 
+    # print(q)
+    # exit()
+    # q[4] = -0.03
     # robot.robot.display(utils.ca_to_np(utils.q_mrp_to_quat(q)))
 
     # while True:
@@ -84,7 +71,7 @@ if __name__ == "__main__":
     # Problem definitions:
     active_problem = Problem(
         subproblems = [
-            Subproblem("squat", Squat, Fraction(opts.freq), robot, create_guess("squat")),
+            Subproblem("stable", Stable, Fraction(opts.freq), robot, create_guess("stable")),
         ],
     )
 

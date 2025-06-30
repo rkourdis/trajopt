@@ -206,6 +206,10 @@ class Problem:
     def load_subtrajectory(soln: Solution, subproblem_name: str) -> CollocationVars[np.ndarray]:
         trajectories = Problem.load_trajectories(soln)
 
+        print("Subproblems in binary:")
+        print([info.subproblem_name for info in soln.transcription_infos])
+        print()
+        
         # Find the correct subproblem index:
         idx, _ = next(
             filter(

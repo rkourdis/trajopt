@@ -70,7 +70,7 @@ class LeggedRobot(ABC):
         self.floor_z = floor_z
 
         # Coefficient of friction between the legs and the ground:
-        self.μ = 0.7
+        self.μ = 0
         # self.μ = ca.inf
 
         # Maximum absolute torque for all joints (N*m):

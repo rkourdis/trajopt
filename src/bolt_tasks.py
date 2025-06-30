@@ -142,6 +142,13 @@ Stable: Task = Task(
                 
                 # No movement along the entire trajectory:
                 Bound(kv.v),
+                Bound(kv.a),
+
+                Constraint(kv.τ[0] - kv.τ[3]),
+                Constraint(kv.τ[1] - kv.τ[4]),
+                Constraint(kv.τ[2] - kv.τ[5]),
+                # Bound(kv.τ[0]),
+                # Bound(kv.τ[3]),
             ] + LR_Symmetry_Constraints(kv, **kwargs),
         )
     ],

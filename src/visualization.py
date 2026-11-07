@@ -21,6 +21,7 @@ def visualise_solution(filename: str, solo: Solo12):
         print(f"Knot: {k}, duration: {int(dt * 1e+3)}ms")
         solo.robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
         time.sleep(dt)
+        input()
 
         # print("norm(τ): ", np.linalg.norm(g_traj.τ_k[k], ord = 2))
         # print("torso height:", g_traj.q_k[k][2] - solo.floor_z)

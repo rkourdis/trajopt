@@ -1,5 +1,5 @@
 import os
-import hppfcl
+import coal
 import numpy as np
 import casadi as ca
 
@@ -17,7 +17,9 @@ class Solo12:
         )
 
     def _create_visualizer(self, floor_z: float = 0.0):
-        self.visualizer = pin.visualize.MeshcatVisualizer(
+        from pinocchio.visualize import MeshcatVisualizer
+
+        self.visualizer = MeshcatVisualizer(
             self.robot.model, self.robot.collision_model, self.robot.visual_model
         )
 
@@ -26,10 +28,9 @@ class Solo12:
         self.robot.loadViewerModel()
 
         # Add floor visual geometry:
-        floor_obj = pin.GeometryObject("floor", 0, 0, hppfcl.Box(2, 2, 0.005), pin.SE3.Identity())
+        floor_obj = pin.GeometryObject("floor", 0, 0, pin.SE3.Identity(), coal.Box(2, 2, 0.005))
         self.visualizer.loadViewerGeometryObject(floor_obj, pin.GeometryType.VISUAL, np.array([0.3, 0.3, 0.3, 1]))
 
-        # Manually set the floor transform because the GeometryObject() constructor doesn't work:
         floor_obj_name = self.visualizer.getViewerNodeName(floor_obj, pin.GeometryType.VISUAL)
         self.visualizer.viewer[floor_obj_name].set_transform(
             pin.SE3(np.eye(3), np.array([0, 0, floor_z])).homogeneous

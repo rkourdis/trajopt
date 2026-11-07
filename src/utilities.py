@@ -3,7 +3,6 @@ from typing import Union, Iterator
 
 import numpy as np
 import casadi as ca
-import pinocchio as pin
 from liecasadi import SE3, SE3Tangent
 
 MatrixLike = Union[np.ndarray, ca.SX]
@@ -119,7 +118,7 @@ def unflatten_mats(vars: MatrixLike, shape: tuple[int, int]) -> list[MatrixLike]
     elif T is np.ndarray:
         return [
             np.hstack(np.vsplit(mc, shape[0])).T
-            for mc in np.vsplit(vars, vars.shape[0] / num_per_mat)
+            for mc in np.vsplit(vars, vars.shape[0] // num_per_mat)
         ]
 
     else:

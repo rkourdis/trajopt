@@ -22,7 +22,9 @@ def load_solo12(visualize = False):
     if not visualize:
         return robot, None
 
-    visualizer = pin.visualize.MeshcatVisualizer(
+    from pinocchio.visualize import MeshcatVisualizer
+
+    visualizer = MeshcatVisualizer(
         robot.model, robot.collision_model, robot.visual_model
     )
 

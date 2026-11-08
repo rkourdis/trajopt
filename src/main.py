@@ -5,7 +5,7 @@ from pathlib import Path
 from tasks import *
 from guesses import *
 from solve import solve
-from robot import Solo12
+from robot import Go2
 from problem import Problem
 from export import export_hdf5
 from transcription import Subproblem
@@ -22,10 +22,10 @@ if __name__ == "__main__":
     parser.add_argument("--hdf5_file",          type = str,                help = "Export trajectory to .hdf5")
     opts = parser.parse_args()
 
-    solo = Solo12(visualize = bool(opts.visualize_file))
+    go2 = Go2(visualize = bool(opts.visualize_file))
 
     if opts.visualize_file:
-        visualise_solution(opts.visualize_file, solo)
+        visualise_solution(opts.visualize_file, go2)
         exit()
 
     # Load previous solution from file if it's used as an initial guess.
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         
     # Otherwise, use the robot standing pose as the guess:
     else:
-        create_guess = lambda _: StandingGuess(solo)
+        create_guess = lambda _: StandingGuess(go2)
 
     # Problem definition:
     problem = Problem(
@@ -50,10 +50,10 @@ if __name__ == "__main__":
             # We split the backflip in two subproblems ('launch', 'land'), as the MRP orientation
             # representation has a singularity at full rotation. Quaternions are difficult to
             # optimize due to the unit norm constraint.
-            Subproblem("jump", JumpTaskInPlace, Fraction(opts.freq), solo, create_guess("jump")),
+            Subproblem("jump", JumpTaskInPlace, Fraction(opts.freq), go2, create_guess("jump")),
             
-            # Subproblem("flip_launch", BackflipLaunch, Fraction(opts.freq), solo, create_guess("flip_launch")),
-            # Subproblem("flip_land", BackflipLand, Fraction(opts.freq), solo, create_guess("flip_land")),
+            # Subproblem("flip_launch", BackflipLaunch, Fraction(opts.freq), go2, create_guess("flip_launch")),
+            # Subproblem("flip_land", BackflipLand, Fraction(opts.freq), go2, create_guess("flip_land")),
         ],
 
         continuity_info = [
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     )
 
     solution = solve(problem)
-    output_filename = f"solution_{opts.freq}hz.bin"
+    output_filename = f"go2_solution_{opts.freq}hz.bin"
 
     with open(output_filename, "wb") as wf:
         pickle.dump(solution, wf)

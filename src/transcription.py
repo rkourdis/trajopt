@@ -6,7 +6,7 @@ import numpy as np
 import casadi as ca
 
 from tasks import Task
-from robot import Solo12
+from robot import Go2
 from constraints import *
 from guesses import GuessOracle
 from variables import CollocationVars
@@ -40,7 +40,7 @@ class Subproblem:
     name:           str
     task:           Task
     freq_hz:        Fraction
-    robot:          Solo12
+    robot:          Go2
     guess_oracle:   GuessOracle
 
     dvars:          CollocationVars[ca.SX]   = field(init = False)
@@ -89,15 +89,18 @@ class Subproblem:
             # Forward dynamics accelerations:
             Constraint(kv.a - self.fd(kv.q, kv.v, kv.τ, kv.λ)),
 
-            # Joint torque limits in N*m:
-            Bound(kv.τ, lb = -self.robot.τ_max, ub = self.robot.τ_max),
-    
-            # Torque vector norm limit:
-            Constraint(ca.norm_2(kv.τ), lb = 0.0, ub = self.robot.τ_norm_max),
-
             # Forward foothold kinematics:
             Constraint(kv.f_pos - self.fk(kv.q)["feet"])
         ])
+
+        # Bound each joint separately: Go2 calves have different torque/speed
+        # limits, and front/rear thigh position limits also differ.
+        for i in range(len(self.robot.actuated_joints)):
+            self.constraints.extend([
+                Bound(kv.τ[i], lb = -float(self.robot.τ_max[i]), ub = float(self.robot.τ_max[i])),
+                Bound(kv.v[6 + i], lb = -float(self.robot.v_max[i]), ub = float(self.robot.v_max[i])),
+                Bound(kv.q[6 + i], lb = float(self.robot.q_min[i]), ub = float(self.robot.q_max[i])),
+            ])
     #############################################################################
 
     # Integration constraints (fully implicit Euler):
@@ -237,7 +240,7 @@ class Subproblem:
 
             for k in range(int(t_s / self.dt), int(t_e / self.dt) + 1):
                 kvars = self.dvars.get_vars_at_knot(k)
-                self.constraints.extend(get_constr(kvars, solo = self.robot, fk = self.fk))
+                self.constraints.extend(get_constr(kvars, go2 = self.robot, fk = self.fk))
 
         # Create expression for the scalar problem objective:
         self.objective = ca.SX.zeros(1)
@@ -264,7 +267,7 @@ class Subproblem:
 
             description         = f"Τ={float(self.task.duration)}, " + 
                                   f"μ={self.robot.μ}, " +
-                                  f"τ_max={self.robot.τ_max}"
+                                  f"τ_max={self.robot.τ_max}",
         )
 
         self.transcribed = True
@@ -283,4 +286,3 @@ class Subproblem:
             guess.slack_vars.append(np.zeros(sv.shape))
 
         return guess
-    

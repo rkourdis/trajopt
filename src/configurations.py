@@ -6,37 +6,18 @@ from utilities import q_quat_to_mrp, ca_to_np
 # Various useful robot joint configurations.
 # The order of joints does not correspond to the order of joints in the model!
 
-# Solo12 in folded configuration, with the knees slightly open downwards
-# so the feet are in contact with the ground:
+# Go2 crouch within its URDF limits. All four knees bend in the same direction.
 FOLDED_JOINT_MAP = {
-    "FR_HAA": 0,
-    "FL_HAA": 0,
-    "HR_HAA": 0,
-    "HL_HAA": 0,
-    "FR_KFE": -np.pi + np.deg2rad(10),
-    "FR_HFE": np.pi / 2,
-    "FL_KFE": -np.pi + np.deg2rad(10),
-    "FL_HFE": np.pi / 2,
-    "HR_KFE": np.pi - np.deg2rad(10),
-    "HR_HFE": -np.pi / 2,
-    "HL_KFE": np.pi - np.deg2rad(10),
-    "HL_HFE": -np.pi / 2,
+    f"{leg}_{joint}_joint": angle
+    for leg in ("FR", "FL", "RR", "RL")
+    for joint, angle in (("hip", 0.0), ("thigh", 1.3), ("calf", -2.6))
 }
 
-# Solo12 standing with legs in V configuration:
+# Symmetric Go2 standing pose, in radians:
 UPRIGHT_JOINT_MAP = {
-    "FR_HAA": 0,
-    "FL_HAA": 0,
-    "HR_HAA": 0,
-    "HL_HAA": 0,
-    "FR_KFE": -np.pi / 2,
-    "FR_HFE": np.pi / 4,
-    "FL_KFE": -np.pi / 2,
-    "FL_HFE": np.pi / 4,
-    "HR_KFE": np.pi / 2,
-    "HR_HFE": -np.pi / 4,
-    "HL_KFE": np.pi / 2,
-    "HL_HFE": -np.pi / 4,
+    f"{leg}_{joint}_joint": angle
+    for leg in ("FR", "FL", "RR", "RL")
+    for joint, angle in (("hip", 0.0), ("thigh", 0.8), ("calf", -1.6))
 }
 
 # Given a dictionary of {"JOINT_NAME": angle} pairs, return a state vector
@@ -46,6 +27,8 @@ def create_state_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float])
     q_quat = np.expand_dims(pin.neutral(robot.model), axis = -1)    # 19x1
 
     for j_name, angle in joint_angles.items():
+        if not robot.model.existJointName(j_name):
+            raise ValueError(f"Unknown joint: {j_name}")
         idx = robot.model.getJointId(j_name)
         q_quat[robot.model.joints[idx].idx_q] = angle
 

@@ -1,7 +1,7 @@
 import casadi as ca
 from pinocchio import casadi as cpin
 
-from robot import Solo12
+from robot import Go2
 from utilities import q_mrp_to_quat
 
 # Autodiff forward dynamics using CasADi.
@@ -9,7 +9,7 @@ from utilities import q_mrp_to_quat
 # calculates state acceleration using the Articulated Body Algorithm.
 # The foot GRFs are expressed in each foot's local world-aligned frame.
 class ADForwardDynamics():
-    def __init__(self, robot: Solo12):
+    def __init__(self, robot: Go2):
         self.robot = robot
         self.cmodel, self.cdata = robot.cmodel, robot.cdata
 
@@ -43,7 +43,8 @@ class ADForwardDynamics():
             grf_at_foot = cpin.Force(λ[foot_idx, :].T, ca.SX.zeros(3))
 
             # Local world-aligned frame at foot:
-            local_wa_f = cpin.SE3(ca.SX.eye(3), self.cdata.oMf[foot_frame_id].translation)
+            center = self.cdata.oMf[foot_frame_id].act(ca.SX(self.robot.foot_center_offset))
+            local_wa_f = cpin.SE3(ca.SX.eye(3), center)
 
             # Express contact force in the parent joint's frame:
             fext_full[parent_joint_id] = self.cdata.oMi[parent_joint_id].actInv(
@@ -61,6 +62,6 @@ class ADForwardDynamics():
         # the legs on contact, as described by the contact constraints.
 
         # Add a bit of viscous friction to the joints:
-        damping = ca.vertcat(ca.SX.zeros(6), -0.01 * v[6:])
+        damping = ca.vertcat(ca.SX.zeros(6), -ca.DM(self.robot.joint_damping) * v[6:])
         
         return cpin.aba(self.cmodel, self.cdata, q, v, tau_full + damping, fext_full)

@@ -67,7 +67,7 @@ GetUpTask: Task = Task(
         # NOTE: We add ε at the end of the intervals as .overlaps() is
         # not inclusive of the end time:
         foot: ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.8") + frac_ε)])
-        for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+        for foot in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]
     },
 
     task_constraints = [
@@ -76,7 +76,7 @@ GetUpTask: Task = Task(
 
             lambda kv, **kwargs: [
                 # All joints in the folded configuration:
-                Constraint(kv.q[3:] - create_state_vector(kwargs["solo"].robot, FOLDED_JOINT_MAP)[3:]),
+                Constraint(kv.q[3:] - create_state_vector(kwargs["go2"].robot, FOLDED_JOINT_MAP)[3:]),
 
                 # Torso XY at (0, 0).
                 # We don't constrain torso Z. If the feet are stuck to the floor,
@@ -93,8 +93,8 @@ GetUpTask: Task = Task(
             TimePeriod.point(F("0.8")),
 
             lambda kv, **kwargs: [
-                # End up static in the V configuration at (0, 0):
-                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
+                # End up static in the standing configuration at (0, 0):
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0][3:]),
                 Bound(kv.q[:2]),
                 Bound(kv.v)
             ]
@@ -136,7 +136,7 @@ JumpTaskInPlace: Task = Task(
             ivt.Interval(F("0.7"), F("1.2") + frac_ε)
         ])
 
-        for foot in ["FR_FOOT", "FL_FOOT", "HR_FOOT", "HL_FOOT"]
+        for foot in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]
     },
 
     task_constraints = [
@@ -147,7 +147,7 @@ JumpTaskInPlace: Task = Task(
             # despite what we did above.
             # Eh, it still works ¯\_(ツ)_/¯
             lambda kv, **kwargs: [
-                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
                 Bound(kv.v)
             ]
         ),
@@ -156,17 +156,17 @@ JumpTaskInPlace: Task = Task(
 
             # Ending state same as initial:
             lambda kv, **kwargs: [
-                Constraint(kv.q - load_robot_pose(Pose.STANDING_V)[0]),
+                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
                 Bound(kv.v)
             ]
         ),
         (
             TimePeriod(start = F("0.0"), end = None),
 
-            # Keep the robot torso above the ground by 6cm, always. This is to
+            # Keep the robot torso above the ground by 18cm, always. This is to
             # avoid the landing being a bit _too_ low!
             lambda kv, **kwargs: [
-                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.06, ub = ca.inf),
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.18, ub = ca.inf),
             ]
         )
     ],
@@ -186,20 +186,20 @@ JumpTaskFwd: Task = Task(
 
     # 300ms jump, front legs leave the ground first:
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "FR_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "FL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "RR_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
     },
 
     task_constraints = [
         (
             TimePeriod.point(F("0.0")), 
 
-            # Feet in static standing V configuration at the beginning:
+            # Feet in static Go2 standing configuration at the beginning:
             lambda kv, **kwargs: [
-                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
-                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
+                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0][:2]),
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0][3:]),
                 Bound(kv.v)
             ]
         ),
@@ -211,7 +211,7 @@ JumpTaskFwd: Task = Task(
                 Bound(kv.q[0], 0.4, ca.inf),
             
                 # Torso is horizontal above the ground at a height of at least 20cm:
-                Bound(kv.q[2], kwargs["solo"].floor_z + 0.2, ca.inf),
+                Bound(kv.q[2], kwargs["go2"].floor_z + 0.2, ca.inf),
                 Bound(kv.q[3:6]),
 
                 # Robot is static:
@@ -221,12 +221,12 @@ JumpTaskFwd: Task = Task(
         (
             TimePeriod(start = F("0.0"), end = None),
 
-            # Keep torso above the floor by 8cm, always.
+            # Keep torso above the floor by 18cm, always.
             # Also, keep knees above the floor by 2cm.
             # Disallow roll or yaw.
             lambda kv, **kwargs: [
-                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.08, ub = ca.inf),
-                Constraint(kwargs["fk"](kv.q)["knees"][:, 2], lb = kwargs["solo"].floor_z + 0.02, ub = ca.inf),
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.18, ub = ca.inf),
+                Constraint(kwargs["fk"](kv.q)["knees"][:, 2], lb = kwargs["go2"].floor_z + 0.02, ub = ca.inf),
                 Bound(kv.v[3]),
                 Bound(kv.v[5]),
             ]
@@ -244,10 +244,10 @@ JumpTaskBwd: Task = Task(
     traj_error = lambda t, kvars: ca.norm_2(kvars.τ),
 
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "FR_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "FL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
+        "RR_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
+        "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
     },
 
     task_constraints = [
@@ -258,8 +258,8 @@ JumpTaskBwd: Task = Task(
             
             lambda kv, **kwargs: [
                 # Robot has gone back to original configuration:
-                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING_V)[0][:2]),
-                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING_V)[0][3:]),
+                Constraint(kv.q[:2] - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0][:2]),
+                Constraint(kv.q[3:] - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0][3:]),
                 
                 # Robot is static:
                 Bound(kv.v)
@@ -269,8 +269,8 @@ JumpTaskBwd: Task = Task(
             TimePeriod(start = F("0.0"), end = None),
 
             lambda kv, **kwargs: [
-                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.08, ub = ca.inf),
-                Constraint(kwargs["fk"](kv.q)["knees"][:, 2], lb = kwargs["solo"].floor_z + 0.02, ub = ca.inf),
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.18, ub = ca.inf),
+                Constraint(kwargs["fk"](kv.q)["knees"][:, 2], lb = kwargs["go2"].floor_z + 0.02, ub = ca.inf),
                 Bound(kv.v[3]),
                 Bound(kv.v[5]),
             ]
@@ -288,22 +288,15 @@ JumpTaskBwd: Task = Task(
 
 # We want the backflip to be left-right symmetric for simplicity:
 LR_Symmetry_Constraints = lambda kv, **kwargs: [
-    Constraint(kv.q[kwargs["solo"].q_off("FR_KFE")] - kv.q[kwargs["solo"].q_off("FL_KFE")]),
-    Constraint(kv.q[kwargs["solo"].q_off("FR_HFE")] - kv.q[kwargs["solo"].q_off("FL_HFE")]),
-    Constraint(kv.q[kwargs["solo"].q_off("FR_HAA")] + kv.q[kwargs["solo"].q_off("FL_HAA")]),
-    Constraint(kv.q[kwargs["solo"].q_off("HR_KFE")] - kv.q[kwargs["solo"].q_off("HL_KFE")]),
-    Constraint(kv.q[kwargs["solo"].q_off("HR_HFE")] - kv.q[kwargs["solo"].q_off("HL_HFE")]),
-    Constraint(kv.q[kwargs["solo"].q_off("HR_HAA")] + kv.q[kwargs["solo"].q_off("HL_HAA")]),
+    Constraint(kv.q[kwargs["go2"].q_off("FR_calf_joint")] - kv.q[kwargs["go2"].q_off("FL_calf_joint")]),
+    Constraint(kv.q[kwargs["go2"].q_off("FR_thigh_joint")] - kv.q[kwargs["go2"].q_off("FL_thigh_joint")]),
+    Constraint(kv.q[kwargs["go2"].q_off("FR_hip_joint")] + kv.q[kwargs["go2"].q_off("FL_hip_joint")]),
+    Constraint(kv.q[kwargs["go2"].q_off("RR_calf_joint")] - kv.q[kwargs["go2"].q_off("RL_calf_joint")]),
+    Constraint(kv.q[kwargs["go2"].q_off("RR_thigh_joint")] - kv.q[kwargs["go2"].q_off("RL_thigh_joint")]),
+    Constraint(kv.q[kwargs["go2"].q_off("RR_hip_joint")] + kv.q[kwargs["go2"].q_off("RL_hip_joint")]),
 ]
 
-# HFE joints are rotationally limited to avoid a cable getting twisted. These constraints
-# express that:
-HFE_Limit_Constraints = lambda kv, **kwargs: [
-    Bound(kv.q[kwargs["solo"].q_off("FL_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
-    Bound(kv.q[kwargs["solo"].q_off("FR_HFE")], lb = -5 * np.pi / 4, ub = np.pi/2),
-    Bound(kv.q[kwargs["solo"].q_off("HL_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
-    Bound(kv.q[kwargs["solo"].q_off("HR_HFE")], lb = -np.pi/2,       ub = 5 * np.pi / 4),
-]
+# Joint position and speed limits are enforced globally from the Go2 URDF.
 
 # -----------------------------
 # Subproblem 1: Backflip Launch
@@ -321,13 +314,11 @@ BackflipLaunch: Task = Task(
     # The hind feet leave the ground 250ms after the front ones.
     # The torso is upside down 200ms after that - these durations
     # have been found through experimentation and looking at backflips.
-    # It is possible to optimize for contact times by formulating the
-    # optimization problem as an LCP, but that's outside the scope of this code.
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
+        "FR_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
+        "FL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε)]),
+        "RR_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
+        "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
     },
 
     task_constraints = [
@@ -360,18 +351,17 @@ BackflipLaunch: Task = Task(
 
             lambda kv, **kwargs: [
                 # Torso always at least 12cm above the ground:
-                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.12, ub = ca.inf),
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.12, ub = ca.inf),
 
                 # Don't allow the hind knees to go below +2cm:
                 Constraint(
                     kwargs["fk"](kv.q)["knees"][2:, 2],
-                    lb = kwargs["solo"].floor_z + 0.02,
+                    lb = kwargs["go2"].floor_z + 0.02,
                     ub = ca.inf
                 )
             ] +
-                # Symmetry and HFE limits:
-                LR_Symmetry_Constraints(kv, **kwargs) +
-                HFE_Limit_Constraints(kv, **kwargs)
+                # Left-right symmetry:
+                LR_Symmetry_Constraints(kv, **kwargs)
         ),
     ],
 )
@@ -389,10 +379,10 @@ BackflipLand: Task = Task(
 
     # Front legs land first, hind 50ms after:
     contact_periods = {
-        "FR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
-        "FL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
-        "HR_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
-        "HL_FOOT": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
+        "FR_foot": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
+        "FL_foot": ivt.IntervalTree([ivt.Interval(F("0.25"), F("0.6") + frac_ε)]),
+        "RR_foot": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
+        "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
     },
 
     task_constraints = [
@@ -405,7 +395,7 @@ BackflipLand: Task = Task(
                 Bound(kv.v),        # Robot static
 
                 # Torso 20cm above the floor:
-                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.2, ub = ca.inf),
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.2, ub = ca.inf),
             ]
         ),
         (
@@ -424,12 +414,11 @@ BackflipLand: Task = Task(
         (
             TimePeriod(start=F("0.0"), end=None),
             
-            # Torso Z constraints, symmetry and HFE limits:
+            # Torso height and left-right symmetry:
             lambda kv, **kwargs: [
-                Bound(kv.q[2], lb = kwargs["solo"].floor_z + 0.12, ub = ca.inf)
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.12, ub = ca.inf)
             ] +
-                LR_Symmetry_Constraints(kv, **kwargs) +
-                HFE_Limit_Constraints(kv, **kwargs)
+                LR_Symmetry_Constraints(kv, **kwargs)
         ),
     ],
 )

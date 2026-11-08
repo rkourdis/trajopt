@@ -1,190 +1,76 @@
-# Please see:
-# https://github.com/stack-of-tasks/pinocchio/blob/ac0b1aa6b18931bed60d0657de3c7680a4037dd3/examples/static-contact-dynamics.py
-# for an explanation of how this works.
+"""Generate a static Go2 pose without an NLP solver.
 
-import os
-import hppfcl
+Run from any directory with: python3 /path/to/trajopt/experiments/stand_up_closed_form.py
+The contact forces use the same sphere-center point-foot approximation as the NLP.
+"""
+
+import pickle
+from pathlib import Path
+import sys
 
 import numpy as np
-import casadi as ca
 import pinocchio as pin
-from pinocchio import casadi as cpin
 
-def load_solo12(visualize = False):
-    pkg_path = os.path.dirname(__file__)
-    urdf_path = os.path.join(pkg_path, "example-robot-data/robots/solo_description/robots/solo12.urdf")
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 
-    # Load full URDF. This creates a RobotWrapper that contains both the read-only model and the data:
-    robot = pin.RobotWrapper.BuildFromURDF(
-        urdf_path, package_dirs = [pkg_path], root_joint = pin.JointModelFreeFlyer()
-    )
+from configurations import UPRIGHT_JOINT_MAP, create_state_vector
+from robot import Go2
+from utilities import ca_to_np, q_mrp_to_quat, q_quat_to_mrp
 
-    if not visualize:
-        return robot, None
 
-    from pinocchio.visualize import MeshcatVisualizer
+def compute_standing_pose(go2: Go2) -> dict:
+    robot = go2.robot
+    model, data = robot.model, robot.data
+    q = ca_to_np(q_mrp_to_quat(create_state_vector(robot, UPRIGHT_JOINT_MAP))).ravel()
+    v = np.zeros(model.nv)
+    foot_ids = [model.getFrameId(name) for name in go2.frames["feet"]]
 
-    visualizer = MeshcatVisualizer(
-        robot.model, robot.collision_model, robot.visual_model
-    )
+    pin.framesForwardKinematics(model, data, q)
+    heights = np.array([data.oMf[fid].act(go2.foot_center_offset)[2] for fid in foot_ids])
+    if np.ptp(heights) > 1e-9:
+        raise ValueError("Standing configuration must place all foot centers at the same height.")
+    q[2] += go2.floor_z - heights.mean()
+    pin.framesForwardKinematics(model, data, q)
 
-    robot.setVisualizer(visualizer)
-    robot.initViewer()
-    robot.loadViewerModel()
+    jacobians = []
+    for fid in foot_ids:
+        jac = pin.computeFrameJacobian(model, data, q, fid, pin.LOCAL_WORLD_ALIGNED).copy()
+        offset_world = data.oMf[fid].rotation @ go2.foot_center_offset
+        jacobians.append(jac[:3] - pin.skew(offset_world) @ jac[3:])
+    jac = np.vstack(jacobians)
+    gravity = pin.rnea(model, data, q, v, v).copy()
 
-    return robot, visualizer
+    # Balance the floating base with minimum-norm world-aligned contact forces.
+    forces, _, _, _ = np.linalg.lstsq(jac[:, :6].T, gravity[:6], rcond=None)
+    tau_full = gravity - jac.T @ forces
+    np.testing.assert_allclose(tau_full[:6], 0.0, atol=1e-9)
+    forces = forces.reshape(4, 3)
+    if np.any(forces[:, 2] < 0) or np.any(np.abs(forces[:, :2]) > go2.μ * forces[:, 2, None]):
+        raise ValueError("Standing contact forces violate the friction pyramid.")
+    if np.any(np.abs(tau_full[6:]) > go2.τ_max):
+        raise ValueError("Standing torques exceed Go2 effort limits.")
+    if np.any(q[7:] < go2.q_min) or np.any(q[7:] > go2.q_max):
+        raise ValueError("Standing configuration violates Go2 joint limits.")
 
-def create_joint_vector(robot: pin.RobotWrapper, joint_angles: dict[str, float]):
-    q_quat = pin.neutral(robot.model)
-
-    for j_name, angle in joint_angles.items():
-        idx = robot.model.getJointId(j_name)
-        q_quat[robot.model.joints[idx].idx_q] = angle
-
-    return np.expand_dims(q_quat, axis = -1)     # 19x1
-
-if __name__ == "__main__":
-    UPRIGHT_JOINT_MAP = {
-        "FR_HAA": 0,
-        "FL_HAA": 0,
-        "HR_HAA": 0,
-        "HL_HAA": 0,
-        "FR_KFE": -np.pi / 2,
-        "FR_HFE": np.pi / 4,
-        "FL_KFE": -np.pi / 2,
-        "FL_HFE": np.pi / 4,
-        "HR_KFE": np.pi / 2,
-        "HR_HFE": -np.pi / 4,
-        "HL_KFE": np.pi / 2,
-        "HL_HFE": -np.pi / 4,
+    return {
+        "robot": "go2",
+        "floor_z": go2.floor_z,
+        "q": ca_to_np(q_quat_to_mrp(q.reshape(-1, 1))),
+        "v": v.reshape(-1, 1),
+        "feet": go2.frames["feet"],
+        "joint_names": list(model.names)[2:],
+        "tau": tau_full[6:].reshape(-1, 1),
+        "λ_local_wa": forces,
     }
 
-    robot, viz = load_solo12(visualize = False)
-    bl_frame_id = robot.model.getFrameId('base_link')
 
-    q = create_joint_vector(robot, UPRIGHT_JOINT_MAP)
-    v, a = np.zeros(robot.nv), np.zeros(robot.nv)
-
-    cmodel = cpin.Model(robot.model)
-    cdata = cmodel.createData()
-
-    FEET = ['FR_FOOT', 'FL_FOOT', 'HR_FOOT', 'HL_FOOT']
-    foot_fr_ids = [robot.model.getFrameId(f) for f in FEET]
-    joint_frame_ids = [robot.model.getFrameId(j) for j in robot.model.names[1:]]
-    
-    g = pin.rnea(robot.model, robot.data, q, v, a)
-
-    J_feet_wrt_q = [
-        np.copy(pin.computeFrameJacobian(robot.model, robot.data, q, frame_id, pin.LOCAL))
-        for frame_id in foot_fr_ids
-    ]
-
-    J_feetxyz_wrt_baseq = [np.copy(J[:3, :6]) for J in J_feet_wrt_q]
-
-    # J_baseq_wrt_feetxyz @ [[v_FR_FOOT_x, v_FR_FOOT_y, v_FR_FOOT_z, v_FL_FOOT_x, ....]].T = v_base
-    J_baseq_wrt_feetxyz = np.vstack(J_feetxyz_wrt_baseq).T              # 6x12
-
-    ################
-    feet_forces_local = np.linalg.pinv(J_baseq_wrt_feetxyz) @ g[:6]
-    foot_force_local = np.split(feet_forces_local, len(FEET))
-
-    contact_forces_at_bl = []
-    pin.framesForwardKinematics(robot.model, robot.data, q)
-
-    foot_force_local_wa = []
-
-    for idx, lf in enumerate(foot_force_local):
-        local_force = pin.Force(lf, np.zeros(3))
-        local_frame = robot.data.oMf[foot_fr_ids[idx]]
-
-        local_wa_frame = pin.SE3(np.eye(3), robot.data.oMf[foot_fr_ids[idx]].translation)
-        local_wa_force = local_wa_frame.actInv(local_frame.act(local_force))
-
-        foot_force_local_wa.append(local_wa_force.linear)
-
-    print("LOCAL FORCES")
-    print(foot_force_local)
-
-    print("LOCAL WA FORCES")
-    print(foot_force_local_wa)
-
-    for idx, foot_frame_id in enumerate(foot_fr_ids):
-        f_bl = robot.data.oMf[joint_frame_ids[0]].actInv(robot.data.oMf[foot_frame_id]).act(
-            pin.Force(foot_force_local[idx], np.zeros(3))
-        )
-
-        print(f"Force at base link from {FEET[idx]}: {f_bl.vector}")
-        contact_forces_at_bl.append(f_bl)
-
-    print()
-
-    J_feetxyz_wrt_joints = [np.copy(J[:3, 6:]) for J in J_feet_wrt_q]
-    J_joints_wrt_feetxyz = np.vstack(J_feetxyz_wrt_joints).T
-
-    tau = g[6:] - J_joints_wrt_feetxyz @ feet_forces_local
-    print("MANUALLY CALCULATED TAU: ", tau)
-
-    JOINTS = ["FR_KFE", "FL_KFE", "HR_KFE", "HL_KFE"]
-    total_feet_force_at_joints = [pin.Force.Zero() for _ in range(len(joint_frame_ids) + 1)]
-
-    for idx, c_joint in enumerate(JOINTS):
-        j_id = robot.model.getJointId(c_joint)
-        jf_id = robot.model.getFrameId(c_joint)
-
-        total_feet_force_at_joints[j_id] = \
-            robot.data.oMf[jf_id].actInv(robot.data.oMf[bl_frame_id]).act(
-                contact_forces_at_bl[idx]
-            )
-
-    # Find torques:
-    rnea_tau = pin.rnea(robot.model, robot.data, q, v, a, total_feet_force_at_joints)
-    print("RNEA TAU:", rnea_tau[6:])
-
-    a = pin.aba(
-        robot.model,
-        robot.data,
-        q,
-        v,
-        np.append(np.zeros(6), tau),
-        total_feet_force_at_joints
-    )
-
-    print("ALPHA WITH MANUAL TAU:", a)
-
-    a_rnea_tau = pin.aba(
-        robot.model,
-        robot.data,
-        q,
-        v,
-        rnea_tau,
-        total_feet_force_at_joints
-    )
-
-    print("ALPHA WITH RNEA TAU:", a_rnea_tau)
-
-    import pickle
-    from utilities import ca_to_np, q_quat_to_mrp
-
-    with open("standing_pose.bin", "wb") as wf:
-        data = {
-            "q": ca_to_np(q_quat_to_mrp(q)),
-            "v": np.zeros((robot.model.nv, 1)),
-            "feet": FEET,
-            "tau": tau.reshape((len(tau), 1)),
-            "λ_local": np.vstack(np.split(feet_forces_local, 4)),
-            "λ_local_wa": np.vstack(foot_force_local_wa)
-        }
-
-        pickle.dump(data, wf)
-        
-    exit()
-
-    total_contact_base = np.sum([
-        robot.data.oMf[bl_frame_id].actInv(robot.data.oMf[foot_frame_id]).act(
-            pin.Force(foot_force_local[foot_idx], np.zeros(3))
-        )
-        for foot_idx, foot_frame_id in enumerate(foot_fr_ids)
-    ])
-
-    print(total_contact_base)
-    print(g[:6])
+if __name__ == "__main__":
+    pose = compute_standing_pose(Go2())
+    path = ROOT / "robot_poses" / "go2_standing_pose.bin"
+    with path.open("wb") as wf:
+        pickle.dump(pose, wf)
+    print(f"Saved Go2 standing pose to {path}")
+    print(f"Base height: {pose['q'][2, 0]:.6f} m")
+    print(f"Maximum standing torque: {np.max(np.abs(pose['tau'])):.6f} Nm")
+    print(f"Total normal force: {pose['λ_local_wa'][:, 2].sum():.6f} N")

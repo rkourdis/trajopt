@@ -1,5 +1,12 @@
 # Quadruped Trajectory Optimization
 
+## Go2 branch
+
+This branch directly targets the Unitree Go2 using the pinned official model in
+`unitree_ros/robots/go2_description`.
+
+## Original Solo12 project
+
 This is a trajectory optimization program written to generate agile motions for my [home-built Solo-12 quadruped](https://odri.discourse.group/t/youre-building-an-odri-robot-tell-us-about-it/533/13):
 
 <div align="center">

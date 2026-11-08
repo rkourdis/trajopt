@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from tasks import Task
-from robot import Solo12
+from robot import Go2
 import utilities as utils
 from poses import load_robot_pose, Pose
 from kinematics import ADFrameKinematics
@@ -12,7 +12,7 @@ from variables import KnotVars, CollocationVars
 
 @dataclass
 class GuessOracle(ABC):
-    robot: Solo12
+    robot: Go2
     task: Task      = None
 
     @abstractmethod
@@ -25,7 +25,7 @@ class GuessOracle(ABC):
 class StandingGuess(GuessOracle):
     def __post_init__(self):
         # Load pose from pickled closed-form (accel = 0) solution:
-        self.q, self.v, self.τ, self.λ = load_robot_pose(Pose.STANDING_V)
+        self.q, self.v, self.τ, self.λ = load_robot_pose(Pose.STANDING, self.robot.floor_z)
 
         # Do FK to calculate feet positions:
         q_sym = ca.SX.sym("q_sym", self.q.shape)

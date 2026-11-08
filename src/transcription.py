@@ -35,8 +35,6 @@ class TranscriptionInfo:
     # Other auxiliary info:
     description: Optional[str] = None
 
-    contact_mode: str = "fixed"
-
 @dataclass
 class Subproblem:
     name:           str
@@ -165,7 +163,7 @@ class Subproblem:
                 ])
 
             # Square friction cone - limits tangential forces if not in contact:
-            self.constraints.extend(
+            self.constraints.extend([
                 Bound(λ[2], lb = 0.0, ub = ca.inf),
 
                 # -μ * λ_z <= λ_xy <= μ * λ_z <=> fabs(λ_xy) <= μ * λ_z
@@ -174,7 +172,7 @@ class Subproblem:
 
                 Constraint(μ * λ[2] - λ[1], lb = 0.0, ub = ca.inf),
                 Constraint(λ[1] + μ * λ[2], lb = 0.0, ub = ca.inf),
-            )
+            ])
             
             if self.task.contact_periods is not None:
                 # If we know for sure that the foot is above the floor, disallow normal forces:
@@ -229,7 +227,7 @@ class Subproblem:
 
             if t_s < 0 or t_e > self.task.duration:
                 raise ValueError(f"Task constraint period ([{t_s}, {t_e}]) is not in [0.0, {self.task.duration}].")
-            
+
             assert t_s % self.dt == 0, f"Constraint start time ({t_s}) must be divisible by Δt ({self.dt})."
             assert t_e % self.dt == 0, f"Constraint end time ({t_e}) must be divisible by Δt ({self.dt})."
 
@@ -263,7 +261,6 @@ class Subproblem:
             description         = f"Τ={float(self.task.duration)}, " + 
                                   f"μ={self.robot.μ}, " +
                                   f"τ_max={self.robot.τ_max}",
-            contact_mode        = self.contact_mode,
         )
 
         self.transcribed = True

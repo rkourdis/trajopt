@@ -54,6 +54,36 @@ class Task:
         ]
     ] = field(default_factory=list)
 
+ImplicitJumpTask: Task = Task(
+    duration = F("1.2"),
+    traj_error = lambda t, kv: ca.norm_2(kv.τ),
+    task_constraints = [
+        (
+            TimePeriod.point(F("0.0")),
+
+            lambda kv, **kwargs: [
+                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
+                Bound(kv.v),
+            ],
+        ),
+
+        (
+            TimePeriod.point(F("0.6")),
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.9, ub = ca.inf)
+            ],
+        ),
+        (
+            TimePeriod.point(F("1.2")),
+
+            lambda kv, **kwargs: [
+                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
+                Bound(kv.v),
+            ],
+        )
+    ]
+)
+
 # -------------------------------------------------
 # Robot gets straight up from folded configuration:
 # -------------------------------------------------
@@ -170,36 +200,6 @@ JumpTaskInPlace: Task = Task(
             ]
         )
     ],
-)
-
-ImplicitJumpTask: Task = Task(
-    duration = F("1.2"),
-    traj_error = lambda t, kv: ca.norm_2(kvars.τ),
-    task_constraints = [
-        (
-            TimePeriod.point(F(0.0)),
-
-            lambda kv, **kwargs: [
-                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
-                Bound(kv.v),
-            ],
-        ),
-
-        (
-            TimePeriod.point(F("0.6")),
-            lambda kv, **kwargs: [
-                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.5, ub = ca.inf)
-            ],
-        ),
-        (
-            TimePeriod.point(F(1.2)),
-
-            lambda kv, **kwargs: [
-                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
-                Bound(kv.v),
-            ],
-        )
-    ]
 )
 
 # -----------------------------------------------------------------------------

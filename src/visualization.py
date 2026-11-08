@@ -21,7 +21,7 @@ def visualise_solution(filename: str, go2: Go2):
         print(f"Knot: {k}, duration: {int(dt * 1e+3)}ms")
         go2.robot.display(ca_to_np(q_mrp_to_quat(q_mrp)))
         time.sleep(dt)
-        # input()
+        input()
 
         # print("norm(τ): ", np.linalg.norm(g_traj.τ_k[k], ord = 2))
         # print("torso height:", g_traj.q_k[k][2] - go2.floor_z)

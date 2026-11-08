@@ -12,13 +12,14 @@ def solve(problem: Problem) -> Solution:
     
     # NOTE: https://or.stackexchange.com/questions/3128/can-tuning-knitro-solver-considerably-make-a-difference
     knitro_settings = {
-        # "hessopt":          knitro.KN_HESSOPT_LBFGS,
-        "nlp_algorithm":    knitro.KN_ALG_BAR_DIRECT,
-        "bar_murule":       knitro.KN_BAR_MURULE_ADAPTIVE,
-        "linsolver":        knitro.KN_LINSOLVER_MA57,
-        "feastol":          1e-3,
-        "ftol":             1e-2,
-        "presolve_level":   knitro.KN_PRESOLVE_LEVEL_2,
+        # "hessopt":              knitro.KN_HESSOPT_LBFGS,
+        "nlp_algorithm":        knitro.KN_ALG_BAR_DIRECT,
+        "bar_murule":           knitro.KN_BAR_MURULE_AUTOMATIC,
+        "linsolver":            knitro.KN_LINSOLVER_MA57,
+        # "concurrent_solver":    knitro.KN_CONCURRENT_SOLVER_YES, # CasADi disables numthreads > 1
+        "feastol":              1e-3,
+        "ftol":                 1e-2,
+        "presolve_level":       knitro.KN_PRESOLVE_LEVEL_2,
         # "bar_feasible": knitro.KN_BAR_FEASIBLE_GET_STAY,
         # "ms_enable":    True,
         # "ms_numthreads": 8,

@@ -125,13 +125,29 @@ class Subproblem:
     # Foot contact constraints (reaction forces, foothold positioning):
     ###################################################################
     def _add_contact_constraints(self, k: int) -> None:
-        t, t_prev = k * self.dt, (k - 1) * self.dt
+        t = k * self.dt
 
         μ       = self.robot.μ
         floor_z = self.robot.floor_z
 
         def add_constraints_for_foot(foot_idx: int):
             λ, fp     = self.dvars.λ_k[k][foot_idx, :], self.dvars.f_pos_k[k][foot_idx, :]
+
+            # Lock XY displacement at zero clearance. A free nonnegative scale
+            # allows swing displacement when the foot is above the floor:
+            if k > 0:
+                fp_prev = self.dvars.f_pos_k[k-1][foot_idx, :]
+                xy_slip = (fp[:2] - fp_prev[:2]).T
+                slip_bound = ca.SX.sym(f"{self.name}_slip_bound_{foot_idx}_{k}")
+                clearance_scale = ca.SX.sym(f"{self.name}_clearance_scale_{foot_idx}_{k}")
+                self.dvars.slack_vars.extend([slip_bound, clearance_scale])
+                self.constraints.extend([
+                    Bound(slip_bound, lb = 0.0, ub = ca.inf),
+                    Bound(clearance_scale, lb = 0.0, ub = ca.inf),
+                    Constraint(ca.repmat(slip_bound, 2) - xy_slip, lb = 0.0, ub = ca.inf),
+                    Constraint(ca.repmat(slip_bound, 2) + xy_slip, lb = 0.0, ub = ca.inf),
+                    Constraint(clearance_scale * (fp[2] - floor_z) - slip_bound, lb = 0.0, ub = ca.inf),
+                ])
 
             # Get foot contact times from the task description:
             contact_times = self.task.contact_periods[self.robot.frames["feet"][foot_idx]]
@@ -154,47 +170,15 @@ class Subproblem:
             # 2. Force the foot to be on the floor:
             self.constraints.append(Bound(fp[2], lb = floor_z, ub = floor_z))
 
-            # 3. Force the foot to not slip in the XY plane if it was in contact previously:
-            if k - 1 >= 0 and contact_times.overlaps(t_prev):
-                fp_prev = self.dvars.f_pos_k[k-1][foot_idx, :]
-                self.constraints.append(Constraint(fp[:2] - fp_prev[:2]))
-
-            # 4. Make sure the tangential contact force lies in the friction cone.
-            #    We will achieve this by adding the following constraints:
-            #       fabs(λ_x) <= μ * λ_z  and  fabs(λ_y) <= μ * λ_z
-            #    This is a pyramidal approximation of the friction cone.
-            #    The fabs(.) operation introduces derivative discontinuity in the 
-            #    constraints and makes optimization difficult. We will reformulate
-            #    the constraints using complementary slack variables to remove
-            #    that discontinuity:
-            #       If x = x_pos - x_neg and 0 =< x_pos \perp x_neg >= 0,
-            #       then |x| = x_pos + x_neg.
-            λ_xy_pos = ca.SX.sym(f"{self.name}_λxy_pos_{foot_idx}_{k}", 2)
-            λ_xy_neg = ca.SX.sym(f"{self.name}_λxy_neg_{foot_idx}_{k}", 2)
-
-            self.dvars.slack_vars.extend([λ_xy_pos, λ_xy_neg])
-
-            # 0 =< λ_xy_pos[:] \perp λ_xy_neg[:] >= 0:
-            self.constraints.extend([
-                Bound(λ_xy_pos, lb = 0.0, ub = ca.inf),
-                Bound(λ_xy_neg, lb = 0.0, ub = ca.inf),
-                Complementarity(λ_xy_pos[0].name(), λ_xy_neg[0].name()),
-                Complementarity(λ_xy_pos[1].name(), λ_xy_neg[1].name()),
-            ])
-
-            # λ_xy = λ_xy_pos - λ_xy_neg:
-            self.constraints.append(Constraint(λ[:2].T - (λ_xy_pos - λ_xy_neg)))
-
-            # fabs(λ_xy) <= λ_z * μ:
-            # NOTE: In this case, the complementarity constraint isn't strictly
-            #       required, as λ_xy_pos + λ_xy_neg >= |λ_xy| always (triangle inequality).
-            #       Therefore, if λ_xy_pos + λ_xy_neg is below the friction limit, then |λ_xy|
-            #       must be as well. If the solver needs more tangential force, it should
-            #       figure out that it can get maximum by setting one of the variables to zero.
-            #       However, adding the constraint seems to help convergence speed in practice.
+            # 3. Square friction pyramid: |λ_x|, |λ_y| <= μ * λ_z.
             self.constraints.append(
                 Constraint(
-                    ca.repmat(μ * λ[2], 2) - (λ_xy_pos + λ_xy_neg),
+                    ca.vertcat(
+                        μ * λ[2] - λ[0],
+                        μ * λ[2] + λ[0],
+                        μ * λ[2] - λ[1],
+                        μ * λ[2] + λ[1],
+                    ),
                     lb = 0.0, ub = ca.inf
                 )
             )

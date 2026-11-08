@@ -133,9 +133,13 @@ class Subproblem:
         def add_constraints_for_foot(foot_idx: int):
             λ, fp     = self.dvars.λ_k[k][foot_idx, :], self.dvars.f_pos_k[k][foot_idx, :]
 
-            dz = ca.SX.sym(f"dz_{foot_idx}_{k}")
+            dz = ca.SX.sym(f"{self.name}_dz_{foot_idx}_{k}")
             self.dvars.slack_vars.append(dz)
-            self.constraints.append(Constraint(dz - (fp[:, 2] - floor_z)))
+
+            self.constraints.extend([
+                Constraint(dz - (fp[:, 2] - floor_z)),
+                Bound(dz, lb = 0.0, ub = ca.inf),
+            ])
 
             # Slip constraints if foot in contact:
             if k > 0:
@@ -146,7 +150,8 @@ class Subproblem:
                 # where s, g >= 0: 
                 xy_slip = (fp[:2] - fp_prev[:2]).T
 
-                s, g = ca.SX.sym(f"s_{foot_idx}_{k}"), ca.SX.sym(f"g_{foot_idx}_{k}")
+                s = ca.SX.sym(f"{self.name}_s_{foot_idx}_{k}")
+                g = ca.SX.sym(f"{self.name}_g_{foot_idx}_{k}")
                 self.dvars.slack_vars.extend([s, g])
 
                 self.constraints.extend([
@@ -180,17 +185,15 @@ class Subproblem:
                 contact_times = self.task.contact_periods[self.robot.frames["feet"][foot_idx]]
 
                 if not contact_times.overlaps(t):
-                    self.constraints.extend([
-                        Bound(λ[2], lb = 0.0, ub = 0.0),
-                        Bound(dz, lb = 0.0, ub = ca.inf),
-                    ])
+                    self.constraints.append(Bound(λ[2], lb = 0.0, ub = 0.0))
+                else:
+                    self.constraints.append(Bound(dz, lb = 0.0, ub = 0.0))
 
-                    return
+                return
 
             # Distance is complementary to normal force, discover
             # contact scheduling:
             self.constraints.append(Complementarity(dz.name(), λ[2].name()))
-            return
 
         # Add constraints for all feet:
         for foot_idx in range(len(self.robot.frames["feet"])):

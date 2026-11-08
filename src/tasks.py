@@ -64,13 +64,15 @@ ImplicitJumpTask: Task = Task(
             lambda kv, **kwargs: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
                 Bound(kv.v),
+                Bound(kv.a),
             ],
         ),
 
         (
             TimePeriod.point(F("0.6")),
             lambda kv, **kwargs: [
-                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.9, ub = ca.inf)
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.7, ub = ca.inf),
+                Bound(kv.v[6:]),
             ],
         ),
         (
@@ -79,6 +81,7 @@ ImplicitJumpTask: Task = Task(
             lambda kv, **kwargs: [
                 Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
                 Bound(kv.v),
+                Bound(kv.a),
             ],
         )
     ]

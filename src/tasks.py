@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from fractions import Fraction
@@ -36,12 +36,12 @@ class Task:
     # Overall trajectory duration (sec):
     duration: Fraction
 
-    # Periods of ground contact for each foot:
-    contact_periods: dict[str, ivt.IntervalTree]
-    
+    # Periods of ground contact for each foot. Omit for contact schedule discovery:
+    contact_periods: Optional[dict[str, ivt.IntervalTree]] = None
+
     # Instantaneous trajectory error to minimise. Given t, q, v, a, τ, λ at a collocation
     # point returns how far away the trajectory is from the desired one at that time:
-    traj_error: Callable[[float, KnotVars[ca.SX]], ca.SX]     
+    traj_error: Callable[[float, KnotVars[ca.SX]], ca.SX] = lambda t, kv: 0.0
 
     # List of times at which a task-specific constraint must hold.
     # For each one, a "factory-like" callable is held which returns
@@ -52,7 +52,7 @@ class Task:
             TimePeriod,
             Callable[[KnotVars[ca.SX], dict], list[ConstraintType]]
         ]
-    ]
+    ] = field(default_factory=list)
 
 # -------------------------------------------------
 # Robot gets straight up from folded configuration:
@@ -170,6 +170,36 @@ JumpTaskInPlace: Task = Task(
             ]
         )
     ],
+)
+
+ImplicitJumpTask: Task = Task(
+    duration = F("1.2"),
+    traj_error = lambda t, kv: ca.norm_2(kvars.τ),
+    task_constraints = [
+        (
+            TimePeriod.point(F(0.0)),
+
+            lambda kv, **kwargs: [
+                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
+                Bound(kv.v),
+            ],
+        ),
+
+        (
+            TimePeriod.point(F("0.6")),
+            lambda kv, **kwargs: [
+                Bound(kv.q[2], lb = kwargs["go2"].floor_z + 0.5, ub = ca.inf)
+            ],
+        ),
+        (
+            TimePeriod.point(F(1.2)),
+
+            lambda kv, **kwargs: [
+                Constraint(kv.q - load_robot_pose(Pose.STANDING, kwargs["go2"].floor_z)[0]),
+                Bound(kv.v),
+            ],
+        )
+    ]
 )
 
 # -----------------------------------------------------------------------------

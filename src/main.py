@@ -50,7 +50,7 @@ if __name__ == "__main__":
             # We split the backflip in two subproblems ('launch', 'land'), as the MRP orientation
             # representation has a singularity at full rotation. Quaternions are difficult to
             # optimize due to the unit norm constraint.
-            Subproblem("jump", JumpTaskInPlace, Fraction(opts.freq), go2, create_guess("jump")),
+            Subproblem("jump", ImplicitJumpTask, Fraction(opts.freq), go2, create_guess("jump")),
             
             # Subproblem("flip_launch", BackflipLaunch, Fraction(opts.freq), go2, create_guess("flip_launch")),
             # Subproblem("flip_land", BackflipLand, Fraction(opts.freq), go2, create_guess("flip_land")),

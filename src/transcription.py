@@ -35,6 +35,8 @@ class TranscriptionInfo:
     # Other auxiliary info:
     description: Optional[str] = None
 
+    contact_mode: str = "fixed"
+
 @dataclass
 class Subproblem:
     name:           str
@@ -133,55 +135,64 @@ class Subproblem:
         def add_constraints_for_foot(foot_idx: int):
             λ, fp     = self.dvars.λ_k[k][foot_idx, :], self.dvars.f_pos_k[k][foot_idx, :]
 
-            # Lock XY displacement at zero clearance. A free nonnegative scale
-            # allows swing displacement when the foot is above the floor:
+            dz = ca.SX.sym(f"dz_{foot_idx}_{k}")
+            self.dvars.slack_vars.append(dz)
+            self.constraints.append(Constraint(dz - (fp[:, 2] - floor_z)))
+
+            # Slip constraints if foot in contact:
             if k > 0:
                 fp_prev = self.dvars.f_pos_k[k-1][foot_idx, :]
+
+                # Set the foot XY difference between knots to be zero id dz == 0.
+                # -s <= xy_slip <= s and s <= g * dz
+                # where s, g >= 0: 
                 xy_slip = (fp[:2] - fp_prev[:2]).T
-                slip_bound = ca.SX.sym(f"{self.name}_slip_bound_{foot_idx}_{k}")
-                clearance_scale = ca.SX.sym(f"{self.name}_clearance_scale_{foot_idx}_{k}")
-                self.dvars.slack_vars.extend([slip_bound, clearance_scale])
+
+                s, g = ca.SX.sym(f"s_{foot_idx}_{k}"), ca.SX.sym(f"g_{foot_idx}_{k}")
+                self.dvars.slack_vars.extend([s, g])
+
                 self.constraints.extend([
-                    Bound(slip_bound, lb = 0.0, ub = ca.inf),
-                    Bound(clearance_scale, lb = 0.0, ub = ca.inf),
-                    Constraint(ca.repmat(slip_bound, 2) - xy_slip, lb = 0.0, ub = ca.inf),
-                    Constraint(ca.repmat(slip_bound, 2) + xy_slip, lb = 0.0, ub = ca.inf),
-                    Constraint(clearance_scale * (fp[2] - floor_z) - slip_bound, lb = 0.0, ub = ca.inf),
+                    Bound(s, lb = 0.0, ub = ca.inf),
+                    Bound(g, lb = 0.0, ub = ca.inf),
+
+                    # -s <= xy_slip <= s
+                    # Use the same s for both dims, it can be scaled arbitrarily large:
+                    Constraint(ca.repmat(s, 2) - xy_slip, lb = 0.0, ub = ca.inf),
+                    Constraint(xy_slip + ca.repmat(s, 2), lb = 0.0, ub = ca.inf),
+
+                    # s <= g * dz to make s = 0 when dz = 0
+                    Constraint(g * dz - s, lb = 0.0, ub = ca.inf),
                 ])
 
-            # Get foot contact times from the task description:
-            contact_times = self.task.contact_periods[self.robot.frames["feet"][foot_idx]]
+            # Square friction cone - limits tangential forces if not in contact:
+            self.constraints.extend(
+                Bound(λ[2], lb = 0.0, ub = ca.inf),
 
-            # If foot isn't in contact, don't allow forces and constrain Z >= floor:
-            if not contact_times.overlaps(t):
-                self.constraints.extend([
-                    Bound(λ,     lb = 0.0, ub = 0.0),
-                    Bound(fp[2], lb = floor_z, ub = ca.inf)
-                ])
+                # -μ * λ_z <= λ_xy <= μ * λ_z <=> fabs(λ_xy) <= μ * λ_z
+                Constraint(μ * λ[2] - λ[0], lb = 0.0, ub = ca.inf),
+                Constraint(λ[0] + μ * λ[2], lb = 0.0, ub = ca.inf),
 
-                return 
-
-            # Foot in contact
-            # ---------------
-
-            # 1. Allow Z-up reaction force:
-            self.constraints.append(Bound(λ[2], lb = 0.0, ub = ca.inf))
-
-            # 2. Force the foot to be on the floor:
-            self.constraints.append(Bound(fp[2], lb = floor_z, ub = floor_z))
-
-            # 3. Square friction pyramid: |λ_x|, |λ_y| <= μ * λ_z.
-            self.constraints.append(
-                Constraint(
-                    ca.vertcat(
-                        μ * λ[2] - λ[0],
-                        μ * λ[2] + λ[0],
-                        μ * λ[2] - λ[1],
-                        μ * λ[2] + λ[1],
-                    ),
-                    lb = 0.0, ub = ca.inf
-                )
+                Constraint(μ * λ[2] - λ[1], lb = 0.0, ub = ca.inf),
+                Constraint(λ[1] + μ * λ[2], lb = 0.0, ub = ca.inf),
             )
+            
+            if self.task.contact_periods is not None:
+                # If we know for sure that the foot is above the floor, disallow normal forces:
+                # TODO: This is on the current knot - did we do forces instanteneously? But z?
+                contact_times = self.task.contact_periods[self.robot.frames["feet"][foot_idx]]
+
+                if not contact_times.overlaps(t):
+                    self.constraints.extend([
+                        Bound(λ[2], lb = 0.0, ub = 0.0),
+                        Bound(dz, lb = 0.0, ub = ca.inf),
+                    ])
+
+                    return
+
+            # Distance is complementary to normal force, discover
+            # contact scheduling:
+            self.constraints.append(Complementarity(dz.name(), λ[2].name()))
+            return
 
         # Add constraints for all feet:
         for foot_idx in range(len(self.robot.frames["feet"])):
@@ -252,6 +263,7 @@ class Subproblem:
             description         = f"Τ={float(self.task.duration)}, " + 
                                   f"μ={self.robot.μ}, " +
                                   f"τ_max={self.robot.τ_max}",
+            contact_mode        = self.contact_mode,
         )
 
         self.transcribed = True

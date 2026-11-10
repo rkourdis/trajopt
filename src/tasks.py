@@ -10,7 +10,7 @@ import intervaltree as ivt
 from constraints import *
 from configurations import *
 from utilities import frac_ε
-from variables import KnotVars
+from variables import KnotVars, CollocationVars
 from poses import Pose, load_robot_pose
 
 @dataclass()
@@ -47,17 +47,23 @@ class Task:
     # For each one, a "factory-like" callable is held which returns
     # constraint objects given the corresponding knot's decision variables.
     # Additional parameters are passed as kwargs.
-    task_constraints: list[
+    per_knot_constraints: list[
         tuple[
             TimePeriod,
             Callable[[KnotVars[ca.SX], dict], list[ConstraintType]]
         ]
     ] = field(default_factory=list)
 
+    # Called once with the complete CollocationVars[ca.SX] for this task.
+    # Can couple endpoints, arbitrary knots, or sums over the trajectory.
+    trajectory_constraints: list[
+        Callable[[CollocationVars, dict], list[ConstraintType]]
+    ] = field(default_factory=list)
+
 ImplicitJumpTask: Task = Task(
     duration = F("1.2"),
     traj_error = lambda t, kv: ca.norm_2(kv.τ),
-    task_constraints = [
+    per_knot_constraints = [
         (
             TimePeriod.point(F("0.0")),
 
@@ -103,7 +109,7 @@ GetUpTask: Task = Task(
         for foot in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]
     },
 
-    task_constraints = [
+    per_knot_constraints = [
         (
             TimePeriod.point(F("0.0")),
 
@@ -172,7 +178,7 @@ JumpTaskInPlace: Task = Task(
         for foot in ["FR_foot", "FL_foot", "RR_foot", "RL_foot"]
     },
 
-    task_constraints = [
+    per_knot_constraints = [
         (
             TimePeriod.point(F("0.0")),
 
@@ -225,7 +231,7 @@ JumpTaskFwd: Task = Task(
         "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.35") + frac_ε), ivt.Interval(F("0.65"), F("1.0") + frac_ε)]),
     },
 
-    task_constraints = [
+    per_knot_constraints = [
         (
             TimePeriod.point(F("0.0")), 
 
@@ -283,7 +289,7 @@ JumpTaskBwd: Task = Task(
         "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.3") + frac_ε), ivt.Interval(F("0.6"), F("1.0") + frac_ε)]),
     },
 
-    task_constraints = [
+    per_knot_constraints = [
         (
             # We don't add initial state constraints, continuity with `JumpTaskFwd`
             # will be enforced:
@@ -354,7 +360,7 @@ BackflipLaunch: Task = Task(
         "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.0"), F("0.55") + frac_ε)]),
     },
 
-    task_constraints = [
+    per_knot_constraints = [
         (
             # Balance for the first knot:
             TimePeriod.point(F("0.0")),
@@ -418,7 +424,7 @@ BackflipLand: Task = Task(
         "RL_foot": ivt.IntervalTree([ivt.Interval(F("0.3"), F("0.6") + frac_ε)]),
     },
 
-    task_constraints = [
+    per_knot_constraints = [
         (
             # Backflip end constraints:
             TimePeriod.point(F("0.6")),

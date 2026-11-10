@@ -222,8 +222,7 @@ class Subproblem:
             if k > 0:
                 self._add_integration_constraints(k)
 
-        # Add task-specific trajectory constraints. A constraint might
-        # hold for a range of knots:
+        # Add per-knot constraints (a constraint might be applied to a range of knots):
         for t_period, get_constr in self.task.task_constraints:
             t_s = t_period.start
             t_e = t_period.end if t_period.end != None else self.task.duration
@@ -237,6 +236,16 @@ class Subproblem:
             for k in range(int(t_s / self.dt), int(t_e / self.dt) + 1):
                 kvars = self.dvars.get_vars_at_knot(k)
                 self.constraints.extend(get_constr(kvars, go2 = self.robot, fk = self.fk))
+
+        # Add general, per trajectory constraints (knots may be coupled with each other):
+        for get_constr in self.task.trajectory_constraints:
+            self.constraints.extend(
+                get_constr(
+                    self.dvars,
+                    go2 = self.robot,
+                    fk = self.fk,
+                )
+            )
 
         # Create expression for the scalar problem objective:
         self.objective = ca.SX.zeros(1)
